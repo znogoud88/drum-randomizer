@@ -1,0 +1,28 @@
+[
+  {
+    "id": "light",
+    "title": "Лёгкая",
+    "note": "Около часа. По два упражнения на категорию.",
+    "blocks": [
+      { "label": "Разминка", "category": "hands", "sets": 1, "play": 5, "rest": 1, "tempo": 0.8 },
+      { "category": "hands", "sets": 2, "play": 4, "rest": 1 },
+      { "category": "feet", "sets": 2, "play": 4, "rest": 1 },
+      { "category": "fills", "sets": 2, "play": 4, "rest": 1 },
+      { "category": "songs", "sets": 2, "play": 4, "rest": 1 },
+      { "label": "Свободная игра", "free": 15 }
+    ]
+  },
+  {
+    "id": "heavy",
+    "title": "Тяжёлая",
+    "note": "Около полутора часов. По три упражнения на категорию, подходы длиннее.",
+    "blocks": [
+      { "label": "Разминка", "category": "hands", "sets": 1, "play": 10, "rest": 1, "tempo": 0.8 },
+      { "category": "hands", "sets": 3, "play": 5, "rest": 1 },
+      { "category": "feet", "sets": 3, "play": 5, "rest": 1 },
+      { "category": "fills", "sets": 3, "play": 5, "rest": 1 },
+      { "category": "songs", "sets": 3, "play": 5, "rest": 1 },
+      { "label": "Свободная игра", "free": 15 }
+    ]
+  }
+]

@@ -8,7 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout: practice-pad console. Four category pads on top, transport strip, then the drumhead "paper" with the notation. */
+/* Layout: practice-pad console. Mode switch, then either the workout clock or the four category pads,
+   then the transport strip and the drumhead "paper" with the notation. */
 :root {
   --bg: #E4E6E8;
   --surface: #F3F4F5;
@@ -17,6 +18,7 @@
   --line: #C9CDD1;
   --brass: #9C6A0E;
   --brass-ink: #FFFFFF;
+  --rest: #2F6F8F;
   --head: #FBFAF6;
   --head-ink: #16191C;
   --danger: #B3261E;
@@ -29,7 +31,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #111315; --surface: #1A1D20; --ink: #ECEEF0; --muted: #98A1A9; --line: #2C3136;
-    --brass: #E2AC3F; --brass-ink: #1A1206; --head: #F2F0EA; --head-ink: #16191C; --danger: #F2867D; color-scheme: dark;
+    --brass: #E2AC3F; --brass-ink: #1A1206; --rest: #6FB3D6; --head: #F2F0EA; --head-ink: #16191C; --danger: #F2867D; color-scheme: dark;
   }
 }
 *, *::before, *::after { box-sizing: border-box; }
@@ -43,11 +45,52 @@ a { color: var(--brass); font-weight: 600; }
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 h1 { font-family: var(--display); font-weight: 900; font-size: 30px; letter-spacing: .02em; text-transform: uppercase; margin: 0; }
+.modes { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--surface); }
+.modes button { appearance: none; border: 0; background: transparent; color: var(--muted); font: 600 13px var(--body); padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+.modes button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 #status { font-size: 13px; color: var(--muted); min-width: 0; }
 #status.err { color: var(--danger); }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
 
+/* ---------- workout picker ---------- */
+.picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 14px; }
+.wcard { border: 2px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 18px; display: grid; gap: 12px; align-content: start; }
+.wcard h2 { margin: 0; font: 900 40px/1 var(--display); text-transform: uppercase; letter-spacing: .01em; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.wcard h2 span { font: 600 15px var(--mono); color: var(--muted); letter-spacing: 0; }
+.wcard p { margin: 0; color: var(--muted); font-size: 14px; }
+.wcard ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 14px; }
+.wcard li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.wcard li b { font-weight: 600; }
+.wcard li span { color: var(--muted); font-family: var(--mono); font-size: 13px; white-space: nowrap; }
+.primary { background: var(--brass); color: var(--brass-ink); border: 0; border-radius: 8px; padding: 12px 16px; font: 700 16px var(--body); cursor: pointer; justify-self: start; }
+
+/* ---------- workout clock ---------- */
+.clock { border: 2px solid var(--brass); border-radius: var(--r); background: var(--surface); padding: 18px 20px; display: grid; gap: 12px; }
+.clock.rest { border-color: var(--rest); }
+.clock.done { border-color: var(--line); }
+.clock-top { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: baseline; }
+.step-label { font: 900 clamp(32px, 6vw, 64px)/1 var(--display); text-transform: uppercase; letter-spacing: .01em; color: var(--brass); }
+.clock.rest .step-label { color: var(--rest); }
+.step-sub { font-family: var(--mono); font-size: 14px; color: var(--muted); }
+.clock-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: end; }
+.remaining { font: 600 clamp(84px, 17vw, 190px)/.9 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.clock.paused .remaining { opacity: .4; }
+.clock-side { display: grid; gap: 8px; justify-items: end; text-align: right; min-width: 0; }
+.next { font-size: 15px; color: var(--muted); }
+.next b { color: var(--ink); }
+.bar { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--brass); border-radius: 999px; transition: width .4s linear; }
+.clock-foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; font-family: var(--mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.steps { display: flex; gap: 3px; flex-wrap: wrap; }
+.steps i { width: 14px; height: 6px; border-radius: 2px; background: var(--line); }
+.steps i.r { width: 6px; }
+.steps i.d { background: var(--muted); }
+.steps i.c { background: var(--brass); }
+
+/* ---------- pads ---------- */
 .cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .cat {
   appearance: none; border: 2px solid var(--line); background: var(--surface); color: var(--ink);
@@ -57,13 +100,13 @@ h1 { font-family: var(--display); font-weight: 900; font-size: 30px; letter-spac
 }
 .cat:hover { border-color: var(--muted); }
 .cat:active { transform: translateY(1px); }
-.cat:focus-visible, button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
 .cat .key { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .cat .label { font-family: var(--display); font-weight: 900; font-size: clamp(34px, 5vw, 54px); line-height: .95; letter-spacing: .01em; align-self: center; }
 .cat .count { font-size: 12px; color: var(--muted); }
 .cat.on { border-color: var(--brass); background: var(--brass); color: var(--brass-ink); }
 .cat.on .key, .cat.on .count { color: inherit; opacity: .8; }
 
+/* ---------- deck ---------- */
 .deck {
   display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr); gap: 20px; align-items: center;
   border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-block: 16px;
@@ -89,6 +132,8 @@ input[type=range] { width: 100%; accent-color: var(--brass); height: 28px; }
 }
 .btn:hover { border-color: var(--muted); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.danger { color: var(--danger); }
+.btn.star[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); font-weight: 600; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
 .toggle input { accent-color: var(--brass); width: 16px; height: 16px; }
 
@@ -111,10 +156,14 @@ details.lib[open] > summary::after { content: "–"; }
 .libbody h3 { margin: 0 0 8px; font-size: 12px; font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 500; display: flex; justify-content: space-between; gap: 8px; }
 .libbody h3 a { font-family: var(--body); letter-spacing: 0; text-transform: none; font-size: 12px; }
 .group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.group li button { all: unset; cursor: pointer; display: block; padding: 4px 0; border-bottom: 1px solid var(--line); width: 100%; overflow-wrap: anywhere; font-size: 14px; }
-.group li button:hover { color: var(--brass); }
-.group li button:focus-visible { outline: 2px solid var(--brass); }
-.group .none { color: var(--muted); font-size: 13px; }
+.group li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px; align-items: center; border-bottom: 1px solid var(--line); }
+.group li .s { all: unset; cursor: pointer; color: var(--line); font-size: 16px; line-height: 1; padding: 4px 2px; }
+.group li .s[aria-pressed="true"] { color: var(--brass); }
+.group li .n { all: unset; cursor: pointer; display: block; padding: 4px 0; overflow-wrap: anywhere; font-size: 14px; }
+.group li .n:hover { color: var(--brass); }
+.group li .s:focus-visible, .group li .n:focus-visible { outline: 2px solid var(--brass); }
+.group li small { display: block; color: var(--muted); font-size: 11px; font-family: var(--mono); }
+.group .none { color: var(--muted); font-size: 13px; display: block; border: 0; }
 .libfoot { padding: 0 16px 16px; }
 .note { font-size: 13px; color: var(--muted); margin: 0; }
 .keys { font-size: 12px; color: var(--muted); margin: 0; }
@@ -125,6 +174,8 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   .cat { min-height: 104px; }
   .deck { grid-template-columns: minmax(0, 1fr); }
   .libbody { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .clock-main { grid-template-columns: minmax(0, 1fr); }
+  .clock-side { justify-items: start; text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -132,11 +183,45 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 <body>
 <div class="wrap">
   <header>
-    <h1>Drum Randomizer</h1>
+    <div class="brand">
+      <h1>Drum Randomizer</h1>
+      <div class="modes" role="group" aria-label="Режим">
+        <button id="modeWorkout" aria-pressed="true">Тренировка</button>
+        <button id="modeFree" aria-pressed="false">Свободно</button>
+      </div>
+    </div>
     <div id="status" role="status" aria-live="polite">Загружаю звук…</div>
   </header>
 
-  <nav class="cats" aria-label="Категории">
+  <!-- workout: picker -->
+  <section class="picker" id="picker" aria-label="Выбор тренировки"></section>
+
+  <!-- workout: running clock -->
+  <section class="clock" id="clock" hidden aria-label="Таймер тренировки">
+    <div class="clock-top">
+      <div class="step-label" id="stepLabel">—</div>
+      <div class="step-sub" id="stepSub"></div>
+    </div>
+    <div class="clock-main">
+      <div class="remaining" id="remaining">0:00</div>
+      <div class="clock-side">
+        <div class="next" id="nextUp"></div>
+        <div class="row">
+          <button class="btn" id="wPause">Пауза</button>
+          <button class="btn" id="wSkip">Следующий шаг</button>
+          <button class="btn danger" id="wStop">Закончить</button>
+        </div>
+      </div>
+    </div>
+    <div class="bar"><i id="totalBar"></i></div>
+    <div class="clock-foot">
+      <span id="elapsed">0:00 из 0:00</span>
+      <span class="steps" id="stepDots" aria-hidden="true"></span>
+    </div>
+  </section>
+
+  <!-- free mode: pads -->
+  <nav class="cats" id="cats" aria-label="Категории" hidden>
     <button class="cat" id="cat-hands"><span class="key">1</span><span class="label">HANDS</span><span class="count">—</span></button>
     <button class="cat" id="cat-feet"><span class="key">2</span><span class="label">FEET</span><span class="count">—</span></button>
     <button class="cat" id="cat-fills"><span class="key">3</span><span class="label">FILLS</span><span class="count">—</span></button>
@@ -146,8 +231,11 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   <section class="deck" aria-label="Сейчас играет">
     <div class="now">
       <div class="eyebrow" id="nowCat">Ничего не выбрано</div>
-      <h2 id="nowName">Нажми категорию, и упражнение заиграет по кругу</h2>
-      <div class="row"><button class="btn" id="reroll" disabled>Другое из категории</button></div>
+      <h2 id="nowName">Выбери тренировку или переключись на «Свободно»</h2>
+      <div class="row">
+        <button class="btn star" id="starBtn" aria-pressed="false" disabled>☆ Важное</button>
+        <button class="btn" id="reroll" disabled>Другое из категории</button>
+      </div>
     </div>
     <div class="transport">
       <button class="play" id="playBtn" disabled aria-label="Играть">PLAY</button>
@@ -163,6 +251,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
           <label class="toggle"><input type="checkbox" id="metro"> Метроном</label>
           <label class="toggle"><input type="checkbox" id="countin" checked> Отсчёт такт</label>
           <label class="toggle"><input type="checkbox" id="drumsMix" checked> Барабаны в звуке</label>
+          <label class="toggle"><input type="checkbox" id="cueOn" checked> Сигнал за 3 секунды</label>
         </div>
       </div>
     </div>
@@ -170,16 +259,17 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 
   <div class="paper" id="paper">
     <div id="at"></div>
-    <div class="empty" id="paperEmpty">Здесь появятся ноты выбранного упражнения</div>
+    <div class="empty" id="paperEmpty">Здесь появятся ноты упражнения</div>
   </div>
 
-  <p class="keys"><kbd>Пробел</kbd> играть или пауза · <kbd>1</kbd>–<kbd>4</kbd> категории · <kbd>←</kbd> <kbd>→</kbd> темп ±5 BPM</p>
+  <p class="keys" id="keysHelp"></p>
 
   <details class="lib" id="lib">
     <summary>Упражнения</summary>
     <div class="libbody" id="libList"></div>
     <div class="libfoot">
-      <p class="note">Новые упражнения добавляются через GitHub: ссылка «добавить» у категории открывает загрузку прямо в её папку. Через минуту после загрузки упражнение появится здесь. <a href="https://github.com/znogoud88/drum-randomizer#readme">Инструкция</a></p>
+      <p class="note">★ помечает важное упражнение: оно выпадает вдвое чаще. Упражнения, которые давно не играл, тоже выпадают чаще. Звёздочки и история хранятся в браузере этого компьютера.</p>
+      <p class="note">Новые упражнения добавляются через GitHub: ссылка «добавить» у категории открывает загрузку прямо в её папку. <a href="https://github.com/znogoud88/drum-randomizer#readme">Инструкция</a></p>
     </div>
   </details>
 </div>
@@ -190,9 +280,11 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   const REPO = "https://github.com/znogoud88/drum-randomizer";
   const CATS = ["hands", "feet", "fills", "songs"];
   const CAT_LABEL = { hands: "HANDS", feet: "FEET", fills: "FILLS", songs: "SONGS" };
+  const DAY = 86400000;
   const $ = (id) => document.getElementById(id);
   const statusEl = $("status");
   const setStatus = (msg, err) => { statusEl.textContent = msg; statusEl.classList.toggle("err", !!err); };
+  const fmt = (sec) => { sec = Math.max(0, Math.ceil(sec)); const m = Math.floor(sec / 60), s = sec % 60; return m + ":" + String(s).padStart(2, "0"); };
 
   const store = {
     get(k, d) { try { const v = localStorage.getItem("drumrand:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
@@ -200,14 +292,20 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   };
 
   let exercises = [];
+  let workouts = [];
+  let countdownUrl = null;
+  let mode = store.get("mode", "workout");
   let current = null;
   let baseTempo = 0;
   let drumTracks = [];
   let wantAutoplay = false;
   let soundReady = false;
   let scoreReady = false;
+  let noSaveTempo = false;
+  let loadSeq = 0;
   const byteCache = new Map();
 
+  // ---------- alphaTab ----------
   const base = new URL(".", location.href).href;
   const paper = $("paper");
   const api = new alphaTab.AlphaTabApi($("at"), {
@@ -229,12 +327,13 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   window.__drumApi = api;
 
   api.error.on((e) => { console.error(e); setStatus("Ошибка: " + (e && e.message ? e.message : e), true); });
-  api.soundFontLoaded.on(() => { soundReady = true; setStatus("Звук загружен. Выбери категорию."); maybeStart(); });
+  api.soundFontLoaded.on(() => { soundReady = true; if (!run) setStatus("Звук загружен."); maybeStart(); });
   api.playerReady.on(() => { soundReady = true; scoreReady = true; applyPlayback(); maybeStart(); });
   api.playerStateChanged.on((a) => {
     const playing = a.state === 1;
     $("playBtn").textContent = playing ? "PAUSE" : "PLAY";
     $("playBtn").setAttribute("aria-label", playing ? "Пауза" : "Играть");
+    if (playing && current) markPlayed(current);
   });
   setTimeout(() => { if (!soundReady) setStatus("Звук не запустился. Обнови страницу.", true); }, 20000);
 
@@ -259,43 +358,323 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     return bytes;
   }
 
-  async function loadExercise(ex, autoplay) {
+  // opts: { autoplay, tempoFactor }
+  async function loadExercise(ex, opts = {}) {
+    const seq = ++loadSeq;
     current = ex;
     scoreReady = false;
-    wantAutoplay = !!autoplay;
+    wantAutoplay = !!opts.autoplay;
+    noSaveTempo = (opts.tempoFactor || 1) !== 1;
     api.stop();
-    $("nowCat").textContent = CAT_LABEL[ex.category] || ex.category;
+    $("nowCat").textContent = (CAT_LABEL[ex.category] || ex.category) + (noSaveTempo ? " · темп " + Math.round(opts.tempoFactor * 100) + "% от обычного" : "");
     $("nowName").textContent = ex.name;
-    renderCats();
-    setStatus("Открываю " + ex.name + "…");
+    renderStar(); renderCats();
     try {
-      const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(await bytesFor(ex), api.settings);
+      const bytes = await bytesFor(ex);
+      if (seq !== loadSeq) return;
+      const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, api.settings);
       baseTempo = Math.round(score.tempo) || 120;
       drumTracks = score.tracks.filter((t) => t.staves.some((st) => st.isPercussion)).map((t) => t.index);
       // Some Guitar Pro files hide every notation type on a staff; with nothing to draw the renderer crashes.
       for (const t of score.tracks) for (const st of t.staves) {
         if (!(st.showStandardNotation || st.showTablature || st.showSlash || st.showNumbered)) st.showStandardNotation = true;
       }
-      $("speed").value = clampPct(Math.round(store.get("speed:" + ex.id, 1) * 100));
+      const saved = store.get("speed:" + ex.id, 1);
+      $("speed").value = clampPct(Math.round(saved * (opts.tempoFactor || 1) * 100));
       updateTempoLabel();
       $("paperEmpty").hidden = true;
       paper.scrollTop = 0;
       api.renderScore(score, drumTracks.length ? drumTracks : [0]);
       enableTransport(true);
-      setStatus(soundReady ? "Играет по кругу. Пробел ставит паузу." : "Жду звуковой банк…");
+      if (!run) setStatus(soundReady ? "Играет по кругу. Пробел ставит паузу." : "Жду звуковой банк…");
     } catch (e) {
       console.error(e);
       setStatus("Не получилось открыть " + ex.name + ": " + e.message, true);
     }
   }
 
-  function pick(cat) {
-    const pool = exercises.filter((e) => e.category === cat);
-    if (!pool.length) { setStatus("В " + CAT_LABEL[cat] + " пока пусто.", true); return; }
-    const others = current && pool.length > 1 ? pool.filter((e) => e.id !== current.id) : pool;
-    loadExercise(others[Math.floor(Math.random() * others.length)], true);
+  // ---------- smart random ----------
+  const isStar = (ex) => !!store.get("star:" + ex.id, false);
+  const lastPlayed = (ex) => store.get("last:" + ex.id, 0);
+  function markPlayed(ex) { store.set("last:" + ex.id, Date.now()); }
+  function weight(ex) {
+    const last = lastPlayed(ex);
+    // never played: top priority; otherwise grows from 1 (today) to 3 (two weeks or more)
+    let w = last ? 1 + Math.min((Date.now() - last) / DAY, 14) / 7 : 3;
+    if (isStar(ex)) w *= 2;
+    return w;
+  }
+  function pickSmart(cat, avoid = new Set()) {
+    const all = exercises.filter((e) => e.category === cat);
+    if (!all.length) return null;
+    let pool = all.filter((e) => !avoid.has(e.id));
+    if (!pool.length) pool = all.filter((e) => !current || e.id !== current.id);
+    if (!pool.length) pool = all;
+    const total = pool.reduce((s, e) => s + weight(e), 0);
+    let r = Math.random() * total;
+    for (const e of pool) { r -= weight(e); if (r <= 0) return e; }
+    return pool[pool.length - 1];
   }
 
+  function pickFree(cat) {
+    const ex = pickSmart(cat, new Set(current ? [current.id] : []));
+    if (!ex) { setStatus("В " + CAT_LABEL[cat] + " пока пусто.", true); return; }
+    loadExercise(ex, { autoplay: true });
+  }
+
+  // ---------- countdown cue ----------
+  let ctx = null, cueBuffer = null;
+  function audio() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+  async function loadCue() {
+    if (!countdownUrl || cueBuffer) return;
+    try {
+      const r = await fetch(countdownUrl);
+      cueBuffer = await audio().decodeAudioData(await r.arrayBuffer());
+    } catch (e) { console.warn("countdown sound", e); }
+  }
+  function cue() {
+    if (!$("cueOn").checked) return;
+    const c = audio(), t = c.currentTime;
+    if (cueBuffer) { const s = c.createBufferSource(); s.buffer = cueBuffer; s.connect(c.destination); s.start(t); return; }
+    // 808-style cowbell: two detuned square waves through a band-pass, short decay
+    const out = c.createGain(); out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.7, t + 0.004);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 2640; bp.Q.value = 1.2;
+    bp.connect(out); out.connect(c.destination);
+    for (const f of [540, 800]) { const o = c.createOscillator(); o.type = "square"; o.frequency.value = f; o.connect(bp); o.start(t); o.stop(t + 0.4); }
+  }
+
+  // ---------- workouts ----------
+  function expand(w) {
+    const steps = [];
+    for (const b of w.blocks) {
+      if (b.free) { steps.push({ kind: "free", label: b.label || "Свободная игра", sec: b.free * 60 }); continue; }
+      const sets = b.sets || 1;
+      for (let i = 1; i <= sets; i++) {
+        steps.push({ kind: "play", category: b.category, label: b.label || CAT_LABEL[b.category], set: i, sets, sec: b.play * 60, tempo: b.tempo || 1 });
+        if (b.rest) steps.push({ kind: "rest", label: "Отдых", sec: b.rest * 60 });
+      }
+    }
+    return steps;
+  }
+  const totalSec = (steps) => steps.reduce((s, x) => s + x.sec, 0);
+
+  function renderPicker() {
+    const box = $("picker");
+    box.textContent = "";
+    for (const w of workouts) {
+      const steps = expand(w);
+      const card = document.createElement("article"); card.className = "wcard";
+      const h = document.createElement("h2"); h.textContent = w.title;
+      const m = document.createElement("span"); m.textContent = Math.round(totalSec(steps) / 60) + " мин"; h.appendChild(m);
+      card.appendChild(h);
+      if (w.note) { const p = document.createElement("p"); p.textContent = w.note; card.appendChild(p); }
+      const ol = document.createElement("ol");
+      for (const b of w.blocks) {
+        const li = document.createElement("li");
+        const name = document.createElement("b");
+        const info = document.createElement("span");
+        if (b.free) { name.textContent = b.label || "Свободная игра"; info.textContent = b.free + " мин"; }
+        else {
+          name.textContent = (b.label ? b.label + " · " : "") + CAT_LABEL[b.category];
+          info.textContent = (b.sets > 1 ? b.sets + " × " : "") + b.play + " мин" + (b.rest ? ", отдых " + b.rest : "") + (b.tempo && b.tempo !== 1 ? ", темп " + Math.round(b.tempo * 100) + "%" : "");
+        }
+        li.append(name, info); ol.appendChild(li);
+      }
+      card.appendChild(ol);
+      const go = document.createElement("button"); go.className = "primary"; go.textContent = "Начать";
+      go.addEventListener("click", () => startWorkout(w));
+      card.appendChild(go);
+      box.appendChild(card);
+    }
+  }
+
+  let run = null; // { w, steps, idx, stepStart, pausedAt, pausedTotal, plan: Map(idx->exercise), used:Set, lastCueSec }
+  let tick = null, wakeLock = null;
+
+  async function keepAwake() {
+    try { if ("wakeLock" in navigator && document.visibilityState === "visible") wakeLock = await navigator.wakeLock.request("screen"); } catch {}
+  }
+  document.addEventListener("visibilitychange", () => { if (run && !run.done) keepAwake(); });
+
+  function startWorkout(w) {
+    audio(); loadCue();
+    const steps = expand(w);
+    run = { w, steps, idx: -1, pausedAt: 0, pausedTotal: 0, plan: new Map(), used: new Set(), elapsedBefore: 0 };
+    $("picker").hidden = true; $("clock").hidden = false;
+    $("wPause").hidden = false; $("wSkip").hidden = false; $("wStop").textContent = "Закончить"; stopArmed = false;
+    renderDots();
+    keepAwake();
+    enterStep(0);
+    clearInterval(tick); tick = setInterval(update, 100);
+  }
+
+  function exerciseFor(i) {
+    if (!run.plan.has(i)) {
+      const st = run.steps[i];
+      const ex = pickSmart(st.category, run.used);
+      if (ex) run.used.add(ex.id);
+      run.plan.set(i, ex);
+    }
+    return run.plan.get(i);
+  }
+  function nextPlayIndex(from) {
+    for (let i = from; i < run.steps.length; i++) if (run.steps[i].kind === "play") return i;
+    return -1;
+  }
+
+  function enterStep(i) {
+    if (run.idx >= 0) run.elapsedBefore += run.steps[run.idx].sec - Math.max(0, remainingSec());
+    run.idx = i;
+    run.stepStart = performance.now(); run.pausedTotal = 0; run.pausedAt = 0; run.lastCueSec = null;
+    $("clock").classList.remove("paused", "done");
+    $("wPause").textContent = "Пауза";
+    if (i >= run.steps.length) return finish();
+    const st = run.steps[i];
+    $("clock").classList.toggle("rest", st.kind !== "play");
+    if (st.kind === "play") {
+      const ex = exerciseFor(i);
+      if (!ex) { setStatus("В " + CAT_LABEL[st.category] + " нет упражнений, пропускаю.", true); return enterStep(i + 1); }
+      if (current === ex && run.preloaded === i) {
+        // already rendered during the rest: start from the top (with the count-in) as soon as it is ready
+        wantAutoplay = true;
+        if (scoreReady) { api.stop(); applyPlayback(); }
+        maybeStart();
+      } else loadExercise(ex, { autoplay: true, tempoFactor: st.tempo });
+      setStatus("Играет. Пробел ставит всё на паузу.");
+    } else {
+      api.stop();
+      const n = nextPlayIndex(i + 1);
+      if (st.kind === "rest" && n >= 0) {
+        const ex = exerciseFor(n);
+        if (ex) { run.preloaded = n; loadExercise(ex, { autoplay: false, tempoFactor: run.steps[n].tempo }); } // notes of the next exercise during the rest
+        setStatus("Отдых. Ноты следующего упражнения уже на экране.");
+      } else if (st.kind === "free") {
+        setStatus("Свободная игра: играй что хочешь, таймер идёт.");
+      }
+    }
+    renderClock();
+  }
+
+  function remainingSec() {
+    if (!run || run.idx < 0 || run.idx >= run.steps.length) return 0;
+    const now = run.pausedAt || performance.now();
+    return run.steps[run.idx].sec - (now - run.stepStart - run.pausedTotal) / 1000;
+  }
+
+  function update() {
+    if (!run || run.done) return;
+    const rem = remainingSec();
+    if (!run.pausedAt) {
+      const whole = Math.ceil(rem);
+      if (whole <= 3 && whole >= 1 && run.lastCueSec !== whole && rem > 0) { run.lastCueSec = whole; cue(); }
+      if (rem <= 0) { enterStep(run.idx + 1); return; }
+    }
+    renderClock();
+  }
+
+  function renderClock() {
+    if (!run) return;
+    const st = run.steps[run.idx];
+    if (!st) return;
+    const rem = remainingSec();
+    $("stepLabel").textContent = st.kind === "play" ? st.label : st.label;
+    $("stepSub").textContent = st.kind === "play" ? (st.sets > 1 ? "подход " + st.set + " из " + st.sets : "") + (st.tempo !== 1 ? (st.sets > 1 ? " · " : "") + "темп " + Math.round(st.tempo * 100) + "%" : "") : "";
+    $("remaining").textContent = fmt(rem);
+    const n = run.steps[run.idx + 1];
+    let nextText = "";
+    if (n) {
+      if (n.kind === "play") { const ex = run.plan.get(run.idx + 1); nextText = "Дальше: <b>" + n.label + "</b>" + (ex ? " · " + escapeHtml(ex.name) : ""); }
+      else if (n.kind === "rest") { const n2 = run.steps[run.idx + 2]; nextText = "Дальше: отдых " + fmt(n.sec) + (n2 && n2.kind === "play" ? ", потом <b>" + n2.label + "</b>" : n2 ? ", потом <b>" + n2.label + "</b>" : ""); }
+      else nextText = "Дальше: <b>" + n.label + "</b>";
+    } else nextText = "Последний шаг";
+    $("nextUp").innerHTML = nextText;
+    const total = totalSec(run.steps);
+    const done = run.elapsedBefore + (st.sec - Math.max(0, rem));
+    $("elapsed").textContent = fmt(done) + " из " + fmt(total);
+    $("totalBar").style.width = Math.min(100, done / total * 100) + "%";
+    const dots = $("stepDots").children;
+    for (let k = 0; k < dots.length; k++) { dots[k].classList.toggle("d", k < run.idx); dots[k].classList.toggle("c", k === run.idx); }
+  }
+  function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+  function renderDots() {
+    const box = $("stepDots"); box.textContent = "";
+    for (const st of run.steps) { const i = document.createElement("i"); if (st.kind === "rest") i.className = "r"; box.appendChild(i); }
+  }
+
+  function togglePause() {
+    if (!run || run.done) return;
+    const st = run.steps[run.idx];
+    if (run.pausedAt) {
+      run.pausedTotal += performance.now() - run.pausedAt; run.pausedAt = 0;
+      $("clock").classList.remove("paused"); $("wPause").textContent = "Пауза";
+      if (st.kind === "play") { if (soundReady && scoreReady) api.play(); else wantAutoplay = true; }
+      setStatus("Продолжаем.");
+    } else {
+      run.pausedAt = performance.now();
+      $("clock").classList.add("paused"); $("wPause").textContent = "Продолжить";
+      api.pause(); wantAutoplay = false;
+      setStatus("Пауза. Пробел продолжает.");
+    }
+    renderClock();
+  }
+
+  function finish() {
+    clearInterval(tick);
+    api.stop();
+    run.done = true;
+    $("clock").classList.remove("rest", "paused"); $("clock").classList.add("done");
+    $("stepLabel").textContent = "Готово";
+    $("stepSub").textContent = run.w.title;
+    $("remaining").textContent = fmt(run.elapsedBefore);
+    $("nextUp").textContent = "Не забудь остановить запись на часах.";
+    $("wPause").hidden = true; $("wSkip").hidden = true; $("wStop").textContent = "К выбору тренировки";
+    $("totalBar").style.width = "100%";
+    try { wakeLock && wakeLock.release(); } catch {}
+    setStatus("Тренировка закончена.");
+  }
+
+  let stopArmed = false;
+  function stopWorkout() {
+    if (run && !run.done && !stopArmed) { stopArmed = true; $("wStop").textContent = "Точно закончить?"; setTimeout(() => { stopArmed = false; if (run && !run.done) $("wStop").textContent = "Закончить"; }, 3000); return; }
+    stopArmed = false;
+    clearInterval(tick);
+    api.stop();
+    try { wakeLock && wakeLock.release(); } catch {}
+    run = null;
+    $("wPause").hidden = false; $("wSkip").hidden = false; $("wStop").textContent = "Закончить";
+    $("clock").hidden = true; $("picker").hidden = mode !== "workout";
+    setStatus("Выбери тренировку.");
+  }
+
+  $("wPause").addEventListener("click", togglePause);
+  $("wSkip").addEventListener("click", () => { if (run && !run.done) { if (run.pausedAt) { run.pausedTotal += performance.now() - run.pausedAt; run.pausedAt = 0; } enterStep(run.idx + 1); } });
+  $("wStop").addEventListener("click", stopWorkout);
+
+  // ---------- modes ----------
+  function setMode(m) {
+    if (run && !run.done && m !== "workout") return setStatus("Сначала закончи тренировку.", true);
+    mode = m; store.set("mode", m);
+    $("modeWorkout").setAttribute("aria-pressed", m === "workout");
+    $("modeFree").setAttribute("aria-pressed", m === "free");
+    $("cats").hidden = m !== "free";
+    $("picker").hidden = m !== "workout" || !!run;
+    $("clock").hidden = m !== "workout" || !run;
+    $("reroll").hidden = m !== "free";
+    $("keysHelp").innerHTML = m === "free"
+      ? "<kbd>Пробел</kbd> играть или пауза · <kbd>1</kbd>–<kbd>4</kbd> категории · <kbd>←</kbd> <kbd>→</kbd> темп ±5 BPM"
+      : "<kbd>Пробел</kbd> пауза всей тренировки · <kbd>N</kbd> следующий шаг · <kbd>←</kbd> <kbd>→</kbd> темп ±5 BPM";
+    if (m === "workout" && !run) { api.stop(); }
+  }
+  $("modeWorkout").addEventListener("click", () => setMode("workout"));
+  $("modeFree").addEventListener("click", () => setMode("free"));
+
+  // ---------- tempo ----------
   function clampPct(p) { return Math.max(25, Math.min(150, p)); }
   function updateTempoLabel() {
     const pct = Number($("speed").value);
@@ -309,7 +688,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     updateTempoLabel();
     if (save) saveSpeed();
   }
-  function saveSpeed() { if (current) store.set("speed:" + current.id, Number($("speed").value) / 100); }
+  function saveSpeed() { if (current && !noSaveTempo) store.set("speed:" + current.id, Number($("speed").value) / 100); }
   function stepBpm(delta) {
     if (!baseTempo) return;
     const bpm = Math.round(baseTempo * Number($("speed").value) / 100) + delta;
@@ -321,38 +700,60 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   $("faster").addEventListener("click", () => stepBpm(5));
   $("resetTempo").addEventListener("click", () => setPct(100, true));
 
-  for (const id of ["metro", "countin", "drumsMix"]) {
+  for (const id of ["metro", "countin", "drumsMix", "cueOn"]) {
     const el = $(id);
     el.checked = store.get("t:" + id, el.checked);
     el.addEventListener("change", () => { store.set("t:" + id, el.checked); if (scoreReady) applyPlayback(); });
   }
 
   function enableTransport(on) {
-    for (const id of ["playBtn", "speed", "slower", "faster", "resetTempo"]) $(id).disabled = !on;
+    for (const id of ["playBtn", "speed", "slower", "faster", "resetTempo", "starBtn"]) $(id).disabled = !on;
   }
 
-  $("playBtn").addEventListener("click", () => { if (soundReady && scoreReady) api.playPause(); else wantAutoplay = true; });
-  $("reroll").addEventListener("click", () => current && pick(current.category));
-  for (const c of CATS) $("cat-" + c).addEventListener("click", () => pick(c));
+  // ---------- stars ----------
+  function renderStar() {
+    const on = !!current && isStar(current);
+    $("starBtn").setAttribute("aria-pressed", on);
+    $("starBtn").textContent = on ? "★ Важное" : "☆ Важное";
+  }
+  function toggleStar(ex) { store.set("star:" + ex.id, !isStar(ex)); renderStar(); renderLib(); }
+  $("starBtn").addEventListener("click", () => current && toggleStar(current));
+
+  $("playBtn").addEventListener("click", () => {
+    if (run && !run.done) return togglePause();
+    if (soundReady && scoreReady) api.playPause(); else wantAutoplay = true;
+  });
+  $("reroll").addEventListener("click", () => current && pickFree(current.category));
+  for (const c of CATS) $("cat-" + c).addEventListener("click", () => { audio(); pickFree(c); });
 
   document.addEventListener("keydown", (e) => {
     const t = e.target;
     if (t && (t.tagName === "INPUT" && t.type !== "range" && t.type !== "checkbox")) return;
-    if (e.code === "Space") { e.preventDefault(); if (current) $("playBtn").click(); }
-    else if (/^Digit[1-4]$/.test(e.code)) { pick(CATS[Number(e.code.slice(5)) - 1]); }
+    const inRun = run && !run.done;
+    if (e.code === "Space") {
+      e.preventDefault();
+      if (inRun) togglePause(); else if (current) $("playBtn").click();
+    } else if (e.code === "KeyN" && inRun) { $("wSkip").click(); }
+    else if (/^Digit[1-4]$/.test(e.code) && mode === "free") { audio(); pickFree(CATS[Number(e.code.slice(5)) - 1]); }
     else if (e.code === "ArrowLeft" && current) { e.preventDefault(); stepBpm(-5); }
     else if (e.code === "ArrowRight" && current) { e.preventDefault(); stepBpm(5); }
   });
 
+  // ---------- library ----------
   function plural(n) { const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? "упражнение" : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? "упражнения" : "упражнений"; }
   function renderCats() {
     for (const c of CATS) {
       const n = exercises.filter((e) => e.category === c).length;
       const b = $("cat-" + c);
       b.querySelector(".count").textContent = n ? n + " " + plural(n) : "пусто";
-      b.classList.toggle("on", !!current && current.category === c);
+      b.classList.toggle("on", !!current && current.category === c && mode === "free");
     }
     $("reroll").disabled = !current || exercises.filter((e) => e.category === current.category).length < 2;
+  }
+  function ago(ts) {
+    if (!ts) return "ещё не играл";
+    const d = Math.floor((Date.now() - ts) / DAY);
+    return d === 0 ? "сегодня" : d === 1 ? "вчера" : d + " дн. назад";
   }
   function renderLib() {
     const list = $("libList");
@@ -368,25 +769,37 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       if (!items.length) { const li = document.createElement("li"); li.className = "none"; li.textContent = "Пока пусто"; ul.appendChild(li); }
       for (const ex of items) {
         const li = document.createElement("li");
-        const b = document.createElement("button"); b.type = "button"; b.textContent = ex.name;
-        b.addEventListener("click", () => loadExercise(ex, true));
-        li.appendChild(b); ul.appendChild(li);
+        const s = document.createElement("button"); s.className = "s"; s.type = "button";
+        s.setAttribute("aria-pressed", isStar(ex)); s.setAttribute("aria-label", "Важное: " + ex.name); s.textContent = "★";
+        s.addEventListener("click", () => toggleStar(ex));
+        const n = document.createElement("button"); n.className = "n"; n.type = "button";
+        n.textContent = ex.name;
+        const sm = document.createElement("small"); sm.textContent = ago(lastPlayed(ex)); n.appendChild(sm);
+        n.addEventListener("click", () => { if (run && !run.done) return setStatus("Во время тренировки упражнения выбирает таймер.", true); audio(); loadExercise(ex, { autoplay: true }); });
+        li.append(s, n); ul.appendChild(li);
       }
       g.appendChild(ul); list.appendChild(g);
     }
   }
+  $("lib").addEventListener("toggle", () => { if ($("lib").open) renderLib(); });
 
+  // ---------- data ----------
   (async () => {
     try {
-      const r = await fetch("exercises.json", { cache: "no-cache" });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      exercises = (await r.json()).sort((a, b) => a.name.localeCompare(b.name));
+      const [er, wr] = await Promise.all([fetch("exercises.json", { cache: "no-cache" }), fetch("workouts.json", { cache: "no-cache" })]);
+      if (!er.ok) throw new Error("exercises.json HTTP " + er.status);
+      const data = await er.json();
+      exercises = (Array.isArray(data) ? data : data.exercises).sort((a, b) => a.name.localeCompare(b.name));
+      countdownUrl = Array.isArray(data) ? null : data.countdownSound;
+      workouts = wr.ok ? await wr.json() : [];
     } catch (e) {
-      setStatus("Не загрузился список упражнений: " + e.message, true);
+      setStatus("Не загрузился список: " + e.message, true);
     }
-    renderCats(); renderLib();
+    renderPicker(); renderCats(); renderLib();
   })();
+  setMode(mode);
   renderCats();
+  window.__drum = { get run() { return run; }, enterStep: (i) => enterStep(i), get current() { return current; }, weight, pickSmart, expand, get workouts() { return workouts; }, startWorkout };
 })();
 </script>
 </body>
