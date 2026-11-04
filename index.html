@@ -143,6 +143,8 @@ input[type=range] { width: 100%; accent-color: var(--brass); height: 28px; }
 }
 .paper .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--head-ink); opacity: .55; font-size: 14px; padding: 24px; text-align: center; }
 #at { min-height: 100%; }
+.paper.cleared #at { visibility: hidden; }
+.paper.cleared .empty { font: 900 clamp(28px, 5vw, 48px)/1 var(--display); text-transform: uppercase; opacity: .35; }
 .at-cursor-bar { background: rgba(226, 172, 63, .18); }
 .at-cursor-beat { background: rgba(156, 106, 14, .85); width: 3px; }
 .at-highlight * { fill: #9C6A0E; stroke: #9C6A0E; }
@@ -383,6 +385,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       $("speed").value = clampPct(Math.round(saved * (opts.tempoFactor || 1) * 100));
       updateTempoLabel();
       $("paperEmpty").hidden = true;
+      paper.classList.remove("cleared");
       paper.scrollTop = 0;
       api.renderScore(score, drumTracks.length ? drumTracks : [0]);
       enableTransport(true);
@@ -423,6 +426,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   }
 
   // ---------- countdown cue ----------
+  const CUE_VOLUME = 0.6; // relative loudness of the countdown cue (1 = original)
   let ctx = null, cueBuffer = null;
   function audio() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -439,10 +443,13 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   function cue() {
     if (!$("cueOn").checked) return;
     const c = audio(), t = c.currentTime;
-    if (cueBuffer) { const s = c.createBufferSource(); s.buffer = cueBuffer; s.connect(c.destination); s.start(t); return; }
+    if (cueBuffer) {
+      const s = c.createBufferSource(), g = c.createGain();
+      s.buffer = cueBuffer; g.gain.value = CUE_VOLUME; s.connect(g); g.connect(c.destination); s.start(t); return;
+    }
     // 808-style cowbell: two detuned square waves through a band-pass, short decay
     const out = c.createGain(); out.gain.setValueAtTime(0.0001, t);
-    out.gain.exponentialRampToValueAtTime(0.7, t + 0.004);
+    out.gain.exponentialRampToValueAtTime(0.7 * CUE_VOLUME, t + 0.004);
     out.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
     const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 2640; bp.Q.value = 1.2;
     bp.connect(out); out.connect(c.destination);
@@ -555,7 +562,10 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
         if (ex) { run.preloaded = n; loadExercise(ex, { autoplay: false, tempoFactor: run.steps[n].tempo }); } // notes of the next exercise during the rest
         setStatus("Отдых. Ноты следующего упражнения уже на экране.");
       } else if (st.kind === "free") {
+        clearDeck(st.label, "Играй что хочешь, таймер идёт");
         setStatus("Свободная игра: играй что хочешь, таймер идёт.");
+      } else {
+        clearDeck("Отдых", "Упражнений больше нет, дальше свободная игра");
       }
     }
     renderClock();
@@ -624,9 +634,24 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     renderClock();
   }
 
+  // Free play and the end screen show no exercise: blank the deck and cover the notation.
+  function clearDeck(title, sub) {
+    ++loadSeq; // cancel any load still in flight
+    api.stop();
+    wantAutoplay = false;
+    current = null;
+    $("nowCat").textContent = sub;
+    $("nowName").textContent = title;
+    paper.classList.add("cleared");
+    $("paperEmpty").textContent = title;
+    $("paperEmpty").hidden = false;
+    enableTransport(false);
+    renderStar(); renderCats();
+  }
+
   function finish() {
     clearInterval(tick);
-    api.stop();
+    clearDeck("Тренировка закончена", run.w.title);
     run.done = true;
     $("clock").classList.remove("rest", "paused"); $("clock").classList.add("done");
     $("stepLabel").textContent = "Готово";
