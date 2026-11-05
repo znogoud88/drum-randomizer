@@ -171,6 +171,27 @@ details.lib[open] > summary::after { content: "–"; }
 .keys { font-size: 12px; color: var(--muted); margin: 0; }
 kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface); color: var(--ink); }
 
+/* ---------- song group: dialog before a workout, chips in free mode ---------- */
+dialog.ask {
+  border: 2px solid var(--brass); border-radius: var(--r); background: var(--surface); color: var(--ink);
+  padding: 22px; width: min(560px, calc(100vw - 32px)); max-width: none;
+}
+dialog.ask::backdrop { background: rgba(0, 0, 0, .55); }
+dialog.ask h2 { margin: 0 0 6px; font: 900 34px/1 var(--display); text-transform: uppercase; letter-spacing: .01em; }
+dialog.ask p { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+.groups { display: grid; gap: 10px; }
+.groups button {
+  appearance: none; border: 2px solid var(--line); background: var(--bg); color: var(--ink); border-radius: var(--r);
+  padding: 14px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; text-align: left;
+}
+.groups button b { font: 900 32px/1 var(--display); text-transform: uppercase; letter-spacing: .01em; }
+.groups button span { font: 500 13px var(--mono); color: var(--muted); white-space: nowrap; }
+.groups button:hover:not(:disabled) { border-color: var(--brass); }
+.groups button.last { border-color: var(--brass); }
+.groups button:disabled { opacity: .4; cursor: not-allowed; }
+dialog.ask .row { margin-top: 14px; justify-content: space-between; }
+.songsel { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+
 @media (max-width: 760px) {
   .cats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cat { min-height: 104px; }
@@ -229,6 +250,17 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     <button class="cat" id="cat-fills"><span class="key">3</span><span class="label">FILLS</span><span class="count">—</span></button>
     <button class="cat" id="cat-songs"><span class="key">4</span><span class="label">SONGS</span><span class="count">—</span></button>
   </nav>
+  <div class="songsel" id="songSel" hidden><span>Песни в SONGS:</span><div class="modes" id="songChips" role="group" aria-label="Какие песни"></div></div>
+
+  <dialog class="ask" id="askSongs" aria-labelledby="askTitle">
+    <h2 id="askTitle">Какие песни сегодня?</h2>
+    <p>Блок SONGS в этой тренировке будет брать песни только отсюда.</p>
+    <div class="groups" id="groupBtns"></div>
+    <div class="row">
+      <span class="keys"><kbd>1</kbd>–<kbd>3</kbd> выбрать · <kbd>Esc</kbd> отмена</span>
+      <button class="btn" id="askCancel" type="button">Отмена</button>
+    </div>
+  </dialog>
 
   <section class="deck" aria-label="Сейчас играет">
     <div class="now">
@@ -407,8 +439,33 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if (isStar(ex)) w *= 2;
     return w;
   }
-  function pickSmart(cat, avoid = new Set()) {
-    const all = exercises.filter((e) => e.category === cat);
+  // ---------- song groups ----------
+  // SONGS are split by the file-name prefix ("dranix-…", "lefort-…"). Files without one of these prefixes are "Normal bands".
+  const SONG_PREFIXES = [{ id: "dranix", label: "Dranix" }, { id: "lefort", label: "Lefort" }];
+  const SONG_GROUPS = [...SONG_PREFIXES, { id: "bands", label: "Normal bands" }];
+  function songGroupOf(ex) {
+    const n = ex.name.toLowerCase();
+    const g = SONG_PREFIXES.find((p) => n.startsWith(p.id + "-"));
+    return g ? g.id : "bands";
+  }
+  const groupLabel = (id) => (SONG_GROUPS.find((g) => g.id === id) || { label: "Все" }).label;
+  const inGroup = (ex, group) => ex.category !== "songs" || !group || songGroupOf(ex) === group;
+  const songsIn = (group) => exercises.filter((e) => e.category === "songs" && inGroup(e, group));
+  let songGroup = store.get("songs", null); // free mode filter; null = all songs. A workout uses its own choice (run.songGroup).
+  function setSongGroup(id) { songGroup = id; store.set("songs", id); renderSongChips(); renderCats(); }
+  function renderSongChips() {
+    const box = $("songChips"); box.textContent = "";
+    for (const g of [{ id: null, label: "Все" }, ...SONG_GROUPS]) {
+      const b = document.createElement("button"); b.type = "button";
+      b.textContent = g.label + " " + songsIn(g.id).length;
+      b.setAttribute("aria-pressed", songGroup === g.id);
+      b.addEventListener("click", () => setSongGroup(g.id));
+      box.appendChild(b);
+    }
+  }
+
+  function pickSmart(cat, avoid = new Set(), group = null) {
+    const all = exercises.filter((e) => e.category === cat && inGroup(e, group));
     if (!all.length) return null;
     let pool = all.filter((e) => !avoid.has(e.id));
     if (!pool.length) pool = all.filter((e) => !current || e.id !== current.id);
@@ -420,13 +477,13 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   }
 
   function pickFree(cat) {
-    const ex = pickSmart(cat, new Set(current ? [current.id] : []));
-    if (!ex) { setStatus("В " + CAT_LABEL[cat] + " пока пусто.", true); return; }
+    const ex = pickSmart(cat, new Set(current ? [current.id] : []), songGroup);
+    if (!ex) { setStatus("В " + CAT_LABEL[cat] + (cat === "songs" && songGroup ? " · " + groupLabel(songGroup) : "") + " пока пусто.", true); return; }
     loadExercise(ex, { autoplay: true });
   }
 
   // ---------- countdown cue ----------
-  const CUE_VOLUME = 0.6; // relative loudness of the countdown cue (1 = original)
+  const CUE_VOLUME = 0.42; // relative loudness of the countdown cue (1 = original)
   let ctx = null, cueBuffer = null;
   function audio() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -495,7 +552,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
       }
       card.appendChild(ol);
       const go = document.createElement("button"); go.className = "primary"; go.textContent = "Начать";
-      go.addEventListener("click", () => startWorkout(w));
+      go.addEventListener("click", () => askSongs(w));
       card.appendChild(go);
       box.appendChild(card);
     }
@@ -509,10 +566,33 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   }
   document.addEventListener("visibilitychange", () => { if (run && !run.done) keepAwake(); });
 
-  function startWorkout(w) {
+  // Before a workout with a SONGS block: ask which song group to play today.
+  function askSongs(w) {
+    if (!w.blocks.some((b) => b.category === "songs")) return startWorkout(w, null);
+    const dlg = $("askSongs"), box = $("groupBtns");
+    box.textContent = "";
+    let focus = null;
+    const last = store.get("workoutSongs", null);
+    SONG_GROUPS.forEach((g, k) => {
+      const n = songsIn(g.id).length;
+      const b = document.createElement("button"); b.type = "button";
+      const name = document.createElement("b"); name.textContent = g.label;
+      const info = document.createElement("span"); info.textContent = (k + 1) + " · " + (n ? n + " " + plural(n) : "пока пусто");
+      b.append(name, info);
+      b.disabled = !n;
+      if (n && (g.id === last || !focus)) { if (g.id === last) b.classList.add("last"); focus = b; }
+      b.addEventListener("click", () => { dlg.close(); store.set("workoutSongs", g.id); startWorkout(w, g.id); });
+      box.appendChild(b);
+    });
+    dlg.showModal();
+    if (focus) focus.focus();
+  }
+  $("askCancel").addEventListener("click", () => $("askSongs").close());
+
+  function startWorkout(w, group = null) {
     audio(); loadCue();
     const steps = expand(w);
-    run = { w, steps, idx: -1, pausedAt: 0, pausedTotal: 0, plan: new Map(), used: new Set(), elapsedBefore: 0 };
+    run = { w, steps, idx: -1, pausedAt: 0, pausedTotal: 0, plan: new Map(), used: new Set(), elapsedBefore: 0, songGroup: group };
     $("picker").hidden = true; $("clock").hidden = false;
     $("wPause").hidden = false; $("wSkip").hidden = false; $("wStop").textContent = "Закончить"; stopArmed = false;
     renderDots();
@@ -524,7 +604,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   function exerciseFor(i) {
     if (!run.plan.has(i)) {
       const st = run.steps[i];
-      const ex = pickSmart(st.category, run.used);
+      const ex = pickSmart(st.category, run.used, run.songGroup);
       if (ex) run.used.add(ex.id);
       run.plan.set(i, ex);
     }
@@ -594,7 +674,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     if (!st) return;
     const rem = remainingSec();
     $("stepLabel").textContent = st.kind === "play" ? st.label : st.label;
-    $("stepSub").textContent = st.kind === "play" ? (st.sets > 1 ? "подход " + st.set + " из " + st.sets : "") + (st.tempo !== 1 ? (st.sets > 1 ? " · " : "") + "темп " + Math.round(st.tempo * 100) + "%" : "") : "";
+    $("stepSub").textContent = st.kind === "play"
+      ? [st.category === "songs" && run.songGroup ? groupLabel(run.songGroup) : "", st.sets > 1 ? "подход " + st.set + " из " + st.sets : "", st.tempo !== 1 ? "темп " + Math.round(st.tempo * 100) + "%" : ""].filter(Boolean).join(" · ")
+      : "";
     $("remaining").textContent = fmt(rem);
     const n = run.steps[run.idx + 1];
     let nextText = "";
@@ -688,6 +770,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     $("modeWorkout").setAttribute("aria-pressed", m === "workout");
     $("modeFree").setAttribute("aria-pressed", m === "free");
     $("cats").hidden = m !== "free";
+    $("songSel").hidden = m !== "free";
     $("picker").hidden = m !== "workout" || !!run;
     $("clock").hidden = m !== "workout" || !run;
     $("reroll").hidden = m !== "free";
@@ -753,6 +836,12 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
 
   document.addEventListener("keydown", (e) => {
     const t = e.target;
+    if ($("askSongs").open) {
+      const k = /^Digit[1-9]$/.test(e.code) ? Number(e.code.slice(5)) - 1 : -1;
+      const b = $("groupBtns").children[k];
+      if (b && !b.disabled) { e.preventDefault(); b.click(); }
+      return;
+    }
     if (t && (t.tagName === "INPUT" && t.type !== "range" && t.type !== "checkbox")) return;
     const inRun = run && !run.done;
     if (e.code === "Space") {
@@ -768,12 +857,12 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
   function plural(n) { const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? "упражнение" : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? "упражнения" : "упражнений"; }
   function renderCats() {
     for (const c of CATS) {
-      const n = exercises.filter((e) => e.category === c).length;
+      const n = exercises.filter((e) => e.category === c && inGroup(e, songGroup)).length;
       const b = $("cat-" + c);
-      b.querySelector(".count").textContent = n ? n + " " + plural(n) : "пусто";
+      b.querySelector(".count").textContent = (c === "songs" && songGroup ? groupLabel(songGroup) + " · " : "") + (n ? n + " " + plural(n) : "пусто");
       b.classList.toggle("on", !!current && current.category === c && mode === "free");
     }
-    $("reroll").disabled = !current || exercises.filter((e) => e.category === current.category).length < 2;
+    $("reroll").disabled = !current || exercises.filter((e) => e.category === current.category && inGroup(e, songGroup)).length < 2;
   }
   function ago(ts) {
     if (!ts) return "ещё не играл";
@@ -820,7 +909,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line); 
     } catch (e) {
       setStatus("Не загрузился список: " + e.message, true);
     }
-    renderPicker(); renderCats(); renderLib();
+    renderPicker(); renderCats(); renderLib(); renderSongChips();
   })();
   setMode(mode);
   renderCats();
