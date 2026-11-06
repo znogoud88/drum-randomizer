@@ -136,6 +136,9 @@ input[type=range] { width: 100%; accent-color: var(--brass); height: 28px; }
 .btn.star[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); font-weight: 600; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
 .toggle input { accent-color: var(--brass); width: 16px; height: 16px; }
+.cuerow input[type=range] { width: 140px; height: 20px; }
+.cuepct { font: 500 12px var(--mono); color: var(--muted); min-width: 4ch; font-variant-numeric: tabular-nums; }
+.tracksel { appearance: auto; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 5px 8px; font: 500 13px var(--body); max-width: 100%; }
 
 .paper {
   background: var(--head); color: var(--head-ink); border-radius: var(--r); border: 1px solid var(--line);
@@ -269,6 +272,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       <div class="row">
         <button class="btn star" id="starBtn" aria-pressed="false" disabled>☆ Важное</button>
         <button class="btn" id="reroll" disabled>Другое из категории</button>
+        <select class="tracksel" id="trackSel" hidden aria-label="Какую дорожку показывать"></select>
       </div>
     </div>
     <div class="transport">
@@ -285,7 +289,13 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
           <label class="toggle"><input type="checkbox" id="metro"> Метроном</label>
           <label class="toggle"><input type="checkbox" id="countin" checked> Отсчёт такт</label>
           <label class="toggle"><input type="checkbox" id="drumsMix" checked> Барабаны в звуке</label>
+          <label class="toggle"><input type="checkbox" id="othersMix" checked> Остальные инструменты в звуке</label>
+        </div>
+        <div class="row cuerow">
           <label class="toggle"><input type="checkbox" id="cueOn" checked> Сигнал за 3 секунды</label>
+          <input type="range" id="cueVol" min="0" max="100" step="1" value="10" aria-label="Громкость сигнала">
+          <span class="cuepct" id="cueVolVal">10%</span>
+          <button class="btn" id="cueTest" type="button">Проверить</button>
         </div>
       </div>
     </div>
@@ -332,6 +342,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   let current = null;
   let baseTempo = 0;
   let drumTracks = [];
+  let otherTracks = [];
   let wantAutoplay = false;
   let soundReady = false;
   let scoreReady = false;
@@ -378,6 +389,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     api.playbackSpeed = Number($("speed").value) / 100;
     const s = api.score;
     if (s && drumTracks.length) api.changeTrackMute(drumTracks.map((i) => s.tracks[i]), !$("drumsMix").checked);
+    if (s && otherTracks.length) api.changeTrackMute(otherTracks.map((i) => s.tracks[i]), !$("othersMix").checked);
   }
   function maybeStart() {
     if (wantAutoplay && soundReady && scoreReady) { wantAutoplay = false; api.play(); }
@@ -409,6 +421,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(bytes, api.settings);
       baseTempo = Math.round(score.tempo) || 120;
       drumTracks = score.tracks.filter((t) => t.staves.some((st) => st.isPercussion)).map((t) => t.index);
+      otherTracks = score.tracks.map((t) => t.index).filter((i) => !drumTracks.includes(i));
       // Some Guitar Pro files hide every notation type on a staff; with nothing to draw the renderer crashes.
       for (const t of score.tracks) for (const st of t.staves) {
         if (!(st.showStandardNotation || st.showTablature || st.showSlash || st.showNumbered)) st.showStandardNotation = true;
@@ -419,9 +432,16 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       $("paperEmpty").hidden = true;
       paper.classList.remove("cleared");
       paper.scrollTop = 0;
-      api.renderScore(score, drumTracks.length ? drumTracks : [0]);
+      const shown = shownTracks(ex, score);
+      renderTrackSel(ex, score);
+      api.renderScore(score, shown);
       enableTransport(true);
       if (!run) setStatus(soundReady ? "Играет по кругу. Пробел ставит паузу." : "Жду звуковой банк…");
+      if (!drumTracks.length) {
+        const t = score.tracks[shown[0]];
+        $("nowCat").textContent += " · нет барабанов";
+        setStatus("В файле " + ex.name + " нет барабанной дорожки, на экране «" + ((t.name || "").trim() || "дорожка " + (t.index + 1)) + "». Пересохрани файл с барабанами или выбери дорожку в списке.", true);
+      }
     } catch (e) {
       console.error(e);
       setStatus("Не получилось открыть " + ex.name + ": " + e.message, true);
@@ -439,6 +459,36 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     if (isStar(ex)) w *= 2;
     return w;
   }
+  // ---------- which track is drawn ----------
+  // Default: every drum track. A file with several tracks gets a picker; the choice is remembered per file.
+  function shownTracks(ex, score) {
+    const saved = store.get("track:" + ex.id, null);
+    if (saved !== null && score.tracks[saved]) return [saved];
+    return drumTracks.length ? drumTracks : [0];
+  }
+  function renderTrackSel(ex, score) {
+    const sel = $("trackSel");
+    sel.textContent = "";
+    sel.hidden = score.tracks.length < 2;
+    if (sel.hidden) return;
+    const saved = store.get("track:" + ex.id, null);
+    const add = (value, text) => { const o = document.createElement("option"); o.value = value; o.textContent = text; sel.appendChild(o); };
+    if (drumTracks.length > 1) add("", "Все барабаны (" + drumTracks.length + ")");
+    else if (drumTracks.length === 1) add("", "Барабаны");
+    for (const t of score.tracks) {
+      if (drumTracks.length === 1 && t.index === drumTracks[0]) continue; // already the default entry
+      add(String(t.index), (t.index + 1) + ". " + ((t.name || "").trim() || "Дорожка") + (drumTracks.includes(t.index) ? " · барабаны" : ""));
+    }
+    sel.value = saved !== null && score.tracks[saved] ? String(saved) : (drumTracks.length ? "" : "0");
+  }
+  $("trackSel").addEventListener("change", () => {
+    const s = api.score;
+    if (!current || !s) return;
+    const v = $("trackSel").value;
+    store.set("track:" + current.id, v === "" ? null : Number(v));
+    api.renderTracks(shownTracks(current, s).map((i) => s.tracks[i]));
+  });
+
   // ---------- song groups ----------
   // SONGS are split by the file-name prefix ("dranix-…", "lefort-…"). Files without one of these prefixes are "Normal bands".
   const SONG_PREFIXES = [{ id: "dranix", label: "Dranix" }, { id: "lefort", label: "Lefort" }];
@@ -483,7 +533,9 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   }
 
   // ---------- countdown cue ----------
-  const CUE_VOLUME = 0.42; // relative loudness of the countdown cue (1 = original)
+  // Loudness comes from the "Сигнал" slider (0–100, default 10). Squared so the slider feels even:
+  // 10 → gain 0.01 (−40 dB from the original cowbell), 50 → 0.25 (−12 dB), 100 → the original.
+  const cueGain = () => (Number($("cueVol").value) / 100) ** 2;
   let ctx = null, cueBuffer = null;
   function audio() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -497,16 +549,18 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       cueBuffer = await audio().decodeAudioData(await r.arrayBuffer());
     } catch (e) { console.warn("countdown sound", e); }
   }
-  function cue() {
-    if (!$("cueOn").checked) return;
+  function cue(force) {
+    if (!$("cueOn").checked && !force) return;
+    const gain = cueGain();
+    if (gain <= 0) return;
     const c = audio(), t = c.currentTime;
     if (cueBuffer) {
       const s = c.createBufferSource(), g = c.createGain();
-      s.buffer = cueBuffer; g.gain.value = CUE_VOLUME; s.connect(g); g.connect(c.destination); s.start(t); return;
+      s.buffer = cueBuffer; g.gain.value = gain; s.connect(g); g.connect(c.destination); s.start(t); return;
     }
     // 808-style cowbell: two detuned square waves through a band-pass, short decay
     const out = c.createGain(); out.gain.setValueAtTime(0.0001, t);
-    out.gain.exponentialRampToValueAtTime(0.7 * CUE_VOLUME, t + 0.004);
+    out.gain.exponentialRampToValueAtTime(Math.max(0.0002, 0.7 * gain), t + 0.004);
     out.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
     const bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 2640; bp.Q.value = 1.2;
     bp.connect(out); out.connect(c.destination);
@@ -725,6 +779,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     $("nowCat").textContent = sub;
     $("nowName").textContent = title;
     paper.classList.add("cleared");
+    $("trackSel").hidden = true;
     $("paperEmpty").textContent = title;
     $("paperEmpty").hidden = false;
     enableTransport(false);
@@ -808,7 +863,13 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   $("faster").addEventListener("click", () => stepBpm(5));
   $("resetTempo").addEventListener("click", () => setPct(100, true));
 
-  for (const id of ["metro", "countin", "drumsMix", "cueOn"]) {
+  $("cueVol").value = store.get("cueVol", 10);
+  $("cueVolVal").textContent = $("cueVol").value + "%";
+  $("cueVol").addEventListener("input", () => { $("cueVolVal").textContent = $("cueVol").value + "%"; store.set("cueVol", Number($("cueVol").value)); });
+  $("cueVol").addEventListener("change", () => cue(true));
+  $("cueTest").addEventListener("click", () => { loadCue().then(() => cue(true)); });
+
+  for (const id of ["metro", "countin", "drumsMix", "othersMix", "cueOn"]) {
     const el = $(id);
     el.checked = store.get("t:" + id, el.checked);
     el.addEventListener("change", () => { store.set("t:" + id, el.checked); if (scoreReady) applyPlayback(); });
@@ -843,6 +904,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       return;
     }
     if (t && (t.tagName === "INPUT" && t.type !== "range" && t.type !== "checkbox")) return;
+    if (t && (t.tagName === "SELECT" || t.id === "cueVol")) return; // their own arrow keys, not the tempo
     const inRun = run && !run.done;
     if (e.code === "Space") {
       e.preventDefault();
