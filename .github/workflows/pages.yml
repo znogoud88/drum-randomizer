@@ -24,6 +24,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build exercise list
         run: node scripts/build-manifest.mjs
+      - name: Measure loudness (the page plays files unchanged if this fails)
+        continue-on-error: true
+        run: |
+          npm install --prefix "$RUNNER_TEMP/at" --no-audit --no-fund @coderline/alphatab@1.8.4
+          AT_DIR="$RUNNER_TEMP/at" node scripts/measure-levels.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

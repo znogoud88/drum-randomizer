@@ -76,7 +76,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .clock.rest .step-label { color: var(--rest); }
 .step-sub { font-family: var(--mono); font-size: 14px; color: var(--muted); }
 .clock-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: end; }
-.remaining { font: 600 clamp(84px, 17vw, 190px)/.9 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+.remaining { font: 600 clamp(64px, min(17vw, 15vh), 190px)/.9 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
 .clock.paused .remaining { opacity: .4; }
 .clock-side { display: grid; gap: 8px; justify-items: end; text-align: right; min-width: 0; }
 .next { font-size: 15px; color: var(--muted); }
@@ -89,6 +89,17 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .steps i.r { width: 6px; }
 .steps i.d { background: var(--muted); }
 .steps i.c { background: var(--brass); }
+
+/* clock and deck: stacked, side by side on wide screens while a workout runs */
+.top { display: grid; gap: 18px; min-width: 0; }
+@media (min-width: 1000px) {
+  .top:has(> .clock:not([hidden])) { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: stretch; }
+  .top:has(> .clock:not([hidden])) .clock-side { max-width: 250px; }
+  .top:has(> .clock:not([hidden])) .clock-side .row { justify-content: flex-end; }
+  .top:has(> .clock:not([hidden])) .deck { grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: center; border: 0; padding-block: 0; }
+  /* the notes take what is left of the window, so the cursor never runs below the screen edge */
+  .wrap:has(#clock:not([hidden])) .paper { height: clamp(280px, calc(100vh - 410px), 560px); }
+}
 
 /* ---------- pads ---------- */
 .cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
@@ -118,7 +129,12 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .play {
   width: 84px; height: 84px; border-radius: 50%; border: 0; cursor: pointer;
   background: var(--ink); color: var(--bg); font-family: var(--display); font-weight: 900; font-size: 20px; letter-spacing: .04em;
+  transition: background-color .12s, box-shadow .12s, transform .06s;
 }
+.play:hover:not(:disabled) { box-shadow: 0 0 0 5px var(--line); }
+.play:active:not(:disabled) { transform: scale(.96); }
+.play.on { background: var(--brass); color: var(--brass-ink); }
+.play.on:hover:not(:disabled) { box-shadow: 0 0 0 5px color-mix(in srgb, var(--brass) 35%, transparent); }
 .play:disabled { opacity: .35; cursor: not-allowed; }
 .tempo { display: grid; gap: 8px; min-width: 0; }
 .bpm { font-family: var(--mono); font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -136,8 +152,7 @@ input[type=range] { width: 100%; accent-color: var(--brass); height: 28px; }
 .btn.star[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); font-weight: 600; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
 .toggle input { accent-color: var(--brass); width: 16px; height: 16px; }
-.cuerow input[type=range] { width: 140px; height: 20px; }
-.cuepct { font: 500 12px var(--mono); color: var(--muted); min-width: 4ch; font-variant-numeric: tabular-nums; }
+.toggles { gap: 6px 18px; margin-top: -8px; }
 .tracksel { appearance: auto; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 5px 8px; font: 500 13px var(--body); max-width: 100%; }
 
 .paper {
@@ -222,30 +237,6 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   <!-- workout: picker -->
   <section class="picker" id="picker" aria-label="Выбор тренировки"></section>
 
-  <!-- workout: running clock -->
-  <section class="clock" id="clock" hidden aria-label="Таймер тренировки">
-    <div class="clock-top">
-      <div class="step-label" id="stepLabel">—</div>
-      <div class="step-sub" id="stepSub"></div>
-    </div>
-    <div class="clock-main">
-      <div class="remaining" id="remaining">0:00</div>
-      <div class="clock-side">
-        <div class="next" id="nextUp"></div>
-        <div class="row">
-          <button class="btn" id="wPause">Пауза</button>
-          <button class="btn" id="wSkip">Следующий шаг</button>
-          <button class="btn danger" id="wStop">Закончить</button>
-        </div>
-      </div>
-    </div>
-    <div class="bar"><i id="totalBar"></i></div>
-    <div class="clock-foot">
-      <span id="elapsed">0:00 из 0:00</span>
-      <span class="steps" id="stepDots" aria-hidden="true"></span>
-    </div>
-  </section>
-
   <!-- free mode: pads -->
   <nav class="cats" id="cats" aria-label="Категории" hidden>
     <button class="cat" id="cat-hands"><span class="key">1</span><span class="label">HANDS</span><span class="count">—</span></button>
@@ -265,45 +256,68 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     </div>
   </dialog>
 
-  <section class="deck" aria-label="Сейчас играет">
-    <div class="now">
-      <div class="eyebrow" id="nowCat">Ничего не выбрано</div>
-      <h2 id="nowName">Выбери тренировку или переключись на «Свободно»</h2>
-      <div class="row">
-        <button class="btn star" id="starBtn" aria-pressed="false" disabled>☆ Важное</button>
-        <button class="btn" id="reroll" disabled>Другое из категории</button>
-        <select class="tracksel" id="trackSel" hidden aria-label="Какую дорожку показывать"></select>
+  <!-- clock and deck share one row on wide screens during a workout, so the notes fit under them -->
+  <div class="top">
+    <!-- workout: running clock -->
+    <section class="clock" id="clock" hidden aria-label="Таймер тренировки">
+      <div class="clock-top">
+        <div class="step-label" id="stepLabel">—</div>
+        <div class="step-sub" id="stepSub"></div>
       </div>
-    </div>
-    <div class="transport">
-      <button class="play" id="playBtn" disabled aria-label="Играть">PLAY</button>
-      <div class="tempo">
-        <div class="bpm"><b id="bpmVal">—</b><span>BPM</span><span id="pctVal"></span></div>
-        <input type="range" id="speed" min="25" max="150" step="1" value="100" aria-label="Темп в процентах от оригинала" disabled>
-        <div class="row">
-          <button class="btn" id="slower" disabled>−5 BPM</button>
-          <button class="btn" id="faster" disabled>+5 BPM</button>
-          <button class="btn" id="resetTempo" disabled>Как в файле</button>
-        </div>
-        <div class="row">
-          <label class="toggle"><input type="checkbox" id="metro"> Метроном</label>
-          <label class="toggle"><input type="checkbox" id="countin" checked> Отсчёт такт</label>
-          <label class="toggle"><input type="checkbox" id="drumsMix" checked> Барабаны в звуке</label>
-          <label class="toggle"><input type="checkbox" id="othersMix" checked> Остальные инструменты в звуке</label>
-        </div>
-        <div class="row cuerow">
-          <label class="toggle"><input type="checkbox" id="cueOn" checked> Сигнал за 3 секунды</label>
-          <input type="range" id="cueVol" min="0" max="100" step="1" value="10" aria-label="Громкость сигнала">
-          <span class="cuepct" id="cueVolVal">10%</span>
-          <button class="btn" id="cueTest" type="button">Проверить</button>
+      <div class="clock-main">
+        <div class="remaining" id="remaining">0:00</div>
+        <div class="clock-side">
+          <div class="next" id="nextUp"></div>
+          <div class="row">
+            <button class="btn" id="wPause">Пауза</button>
+            <button class="btn" id="wSkip">Следующий шаг</button>
+            <button class="btn danger" id="wStop">Закончить</button>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+      <div class="bar"><i id="totalBar"></i></div>
+      <div class="clock-foot">
+        <span id="elapsed">0:00 из 0:00</span>
+        <span class="steps" id="stepDots" aria-hidden="true"></span>
+      </div>
+    </section>
+    <section class="deck" aria-label="Сейчас играет">
+      <div class="now">
+        <div class="eyebrow" id="nowCat">Ничего не выбрано</div>
+        <h2 id="nowName">Выбери тренировку или переключись на «Свободно»</h2>
+        <div class="row">
+          <button class="btn star" id="starBtn" aria-pressed="false" disabled>☆ Важное</button>
+          <button class="btn" id="reroll" disabled>Другое из категории</button>
+          <select class="tracksel" id="trackSel" hidden aria-label="Какую дорожку показывать"></select>
+        </div>
+      </div>
+      <div class="transport">
+        <button class="play" id="playBtn" disabled aria-label="Играть">PLAY</button>
+        <div class="tempo">
+          <div class="bpm"><b id="bpmVal">—</b><span>BPM</span><span id="pctVal"></span></div>
+          <input type="range" id="speed" min="25" max="150" step="1" value="100" aria-label="Темп в процентах от оригинала" disabled>
+          <div class="row">
+            <button class="btn" id="slower" disabled>−5 BPM</button>
+            <button class="btn" id="faster" disabled>+5 BPM</button>
+            <button class="btn" id="resetTempo" disabled>Как в файле</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <div class="paper" id="paper">
     <div id="at"></div>
     <div class="empty" id="paperEmpty">Здесь появятся ноты упражнения</div>
+  </div>
+
+  <!-- settings that are not needed mid-exercise live under the notes -->
+  <div class="row toggles" aria-label="Звук">
+    <label class="toggle"><input type="checkbox" id="metro"> Метроном</label>
+    <label class="toggle"><input type="checkbox" id="countin" checked> Отсчёт такт</label>
+    <label class="toggle"><input type="checkbox" id="drumsMix" checked> Барабаны в звуке</label>
+    <label class="toggle"><input type="checkbox" id="othersMix" checked> Остальные инструменты в звуке</label>
+    <label class="toggle"><input type="checkbox" id="cueOn" checked> Сигнал за 3 секунды</label>
   </div>
 
   <p class="keys" id="keysHelp"></p>
@@ -374,12 +388,20 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   api.error.on((e) => { console.error(e); setStatus("Ошибка: " + (e && e.message ? e.message : e), true); });
   api.soundFontLoaded.on(() => { soundReady = true; if (!run) setStatus("Звук загружен."); maybeStart(); });
   api.playerReady.on(() => { soundReady = true; scoreReady = true; applyPlayback(); maybeStart(); });
+  let playing = false;
   api.playerStateChanged.on((a) => {
-    const playing = a.state === 1;
-    $("playBtn").textContent = playing ? "PAUSE" : "PLAY";
-    $("playBtn").setAttribute("aria-label", playing ? "Пауза" : "Играть");
+    playing = a.state === alphaTab.synth.PlayerState.Playing;
+    renderPlay();
     if (playing && current) markPlayed(current);
   });
+  // PAUSE while sound plays or a workout is waiting to autoplay; PLAY otherwise.
+  function renderPlay() {
+    const on = playing || (wantAutoplay && !(run && run.pausedAt));
+    const b = $("playBtn");
+    b.textContent = on ? "PAUSE" : "PLAY";
+    b.setAttribute("aria-label", on ? "Пауза" : "Играть");
+    b.classList.toggle("on", on);
+  }
   setTimeout(() => { if (!soundReady) setStatus("Звук не запустился. Обнови страницу.", true); }, 20000);
 
   function applyPlayback() {
@@ -390,6 +412,22 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     const s = api.score;
     if (s && drumTracks.length) api.changeTrackMute(drumTracks.map((i) => s.tracks[i]), !$("drumsMix").checked);
     if (s && otherTracks.length) api.changeTrackMute(otherTracks.map((i) => s.tracks[i]), !$("othersMix").checked);
+    applyLevels();
+  }
+
+  // ---------- loudness ----------
+  // exercises.json carries each file's measured loudness (scripts/measure-levels.mjs, LUFS).
+  // Drums of every file are brought to DRUMS_LUFS; the other instruments sit BACKING_LU under the drums.
+  const DRUMS_LUFS = -26;
+  const BACKING_LU = 4;
+  const gainFor = (from, to) => Math.min(16, Math.max(0.05, 10 ** ((to - from) / 20)));
+  function applyLevels() {
+    const s = api.score;
+    if (!s) return;
+    const lv = (current && current.levels) || {};
+    const set = (idx, g) => { if (idx.length) api.changeTrackVolume(idx.map((i) => s.tracks[i]), g); };
+    set(drumTracks, lv.drums != null ? gainFor(lv.drums, DRUMS_LUFS) : 1);
+    set(otherTracks, lv.others != null ? gainFor(lv.others, DRUMS_LUFS - BACKING_LU) : 1);
   }
   function maybeStart() {
     if (wantAutoplay && soundReady && scoreReady) { wantAutoplay = false; api.play(); }
@@ -410,6 +448,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     current = ex;
     scoreReady = false;
     wantAutoplay = !!opts.autoplay;
+    renderPlay();
     noSaveTempo = (opts.tempoFactor || 1) !== 1;
     api.stop();
     $("nowCat").textContent = (CAT_LABEL[ex.category] || ex.category) + (noSaveTempo ? " · темп " + Math.round(opts.tempoFactor * 100) + "% от обычного" : "");
@@ -533,9 +572,8 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   }
 
   // ---------- countdown cue ----------
-  // Loudness comes from the "Сигнал" slider (0–100, default 10). Squared so the slider feels even:
-  // 10 → gain 0.01 (−40 dB from the original cowbell), 50 → 0.25 (−12 dB), 100 → the original.
-  const cueGain = () => (Number($("cueVol").value) / 100) ** 2;
+  // Fixed loudness: gain 0.01, −40 dB from the original cowbell (was "10%" on the old slider, tested in practice).
+  const cueGain = () => 0.01;
   let ctx = null, cueBuffer = null;
   function audio() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -768,6 +806,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       setStatus("Пауза. Пробел продолжает.");
     }
     renderClock();
+    renderPlay();
   }
 
   // Free play and the end screen show no exercise: blank the deck and cover the notation.
@@ -863,12 +902,6 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   $("faster").addEventListener("click", () => stepBpm(5));
   $("resetTempo").addEventListener("click", () => setPct(100, true));
 
-  $("cueVol").value = store.get("cueVol", 10);
-  $("cueVolVal").textContent = $("cueVol").value + "%";
-  $("cueVol").addEventListener("input", () => { $("cueVolVal").textContent = $("cueVol").value + "%"; store.set("cueVol", Number($("cueVol").value)); });
-  $("cueVol").addEventListener("change", () => cue(true));
-  $("cueTest").addEventListener("click", () => { loadCue().then(() => cue(true)); });
-
   for (const id of ["metro", "countin", "drumsMix", "othersMix", "cueOn"]) {
     const el = $(id);
     el.checked = store.get("t:" + id, el.checked);
@@ -890,7 +923,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
 
   $("playBtn").addEventListener("click", () => {
     if (run && !run.done) return togglePause();
-    if (soundReady && scoreReady) api.playPause(); else wantAutoplay = true;
+    if (soundReady && scoreReady) api.playPause(); else { wantAutoplay = !wantAutoplay; renderPlay(); }
   });
   $("reroll").addEventListener("click", () => current && pickFree(current.category));
   for (const c of CATS) $("cat-" + c).addEventListener("click", () => { audio(); pickFree(c); });
@@ -904,7 +937,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       return;
     }
     if (t && (t.tagName === "INPUT" && t.type !== "range" && t.type !== "checkbox")) return;
-    if (t && (t.tagName === "SELECT" || t.id === "cueVol")) return; // their own arrow keys, not the tempo
+    if (t && t.tagName === "SELECT") return; // its own arrow keys, not the tempo
     const inRun = run && !run.done;
     if (e.code === "Space") {
       e.preventDefault();
