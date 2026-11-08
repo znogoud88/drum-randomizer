@@ -22,6 +22,7 @@
   --head: #FBFAF6;
   --head-ink: #16191C;
   --danger: #B3261E;
+  --ok: #2E8B57;
   --display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
   --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
@@ -31,7 +32,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #111315; --surface: #1A1D20; --ink: #ECEEF0; --muted: #98A1A9; --line: #2C3136;
-    --brass: #E2AC3F; --brass-ink: #1A1206; --rest: #6FB3D6; --head: #F2F0EA; --head-ink: #16191C; --danger: #F2867D; color-scheme: dark;
+    --brass: #E2AC3F; --brass-ink: #1A1206; --rest: #6FB3D6; --head: #F2F0EA; --head-ink: #16191C; --danger: #F2867D; --ok: #5FC58A; color-scheme: dark;
   }
 }
 *, *::before, *::after { box-sizing: border-box; }
@@ -102,7 +103,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 }
 
 /* ---------- pads ---------- */
-.cats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.cats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
 .cat {
   appearance: none; border: 2px solid var(--line); background: var(--surface); color: var(--ink);
   border-radius: var(--r); padding: 16px 16px 14px; min-height: 132px; cursor: pointer;
@@ -150,6 +151,17 @@ input[type=range] { width: 100%; accent-color: var(--brass); height: 28px; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn.danger { color: var(--danger); }
 .btn.star[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); font-weight: 600; }
+.btn.done::before { content: "○ "; }
+.btn.done[aria-pressed="true"] { border-color: var(--ok, #3a9d5d); color: var(--ok, #3a9d5d); font-weight: 600; }
+.btn.done[aria-pressed="true"]::before { content: "✓ "; }
+/* MIDI numbers drawn over the note heads of the drum staff (toggle "Цифры вместо нот") */
+.nums { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 2; }
+.nums span {
+  position: absolute; transform: translate(-50%, -50%); box-sizing: border-box;
+  font: 700 var(--numfs, 11px)/1 var(--mono); letter-spacing: -.04em; color: var(--head-ink); background: var(--head);
+  border-radius: 3px; padding: 1px 2px; white-space: nowrap;
+}
+.nums span.acc { background: var(--head-ink); color: var(--head); }
 .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
 .toggle input { accent-color: var(--brass); width: 16px; height: 16px; }
 .toggles { gap: 6px 18px; margin-top: -8px; }
@@ -172,7 +184,11 @@ details.lib > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; l
 details.lib > summary::-webkit-details-marker { display: none; }
 details.lib > summary::after { content: "+"; font-family: var(--mono); color: var(--muted); }
 details.lib[open] > summary::after { content: "–"; }
-.libbody { padding: 0 16px 16px; display: grid; gap: 18px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.libbody { padding: 0 16px 16px; display: grid; gap: 18px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.group h4 { margin: 10px 0 2px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.group li .d { all: unset; cursor: pointer; color: var(--line); font-size: 13px; line-height: 1; padding: 4px 2px; }
+.group li .d[aria-pressed="true"] { color: var(--ok, #3a9d5d); }
+.group li.song { grid-template-columns: auto auto minmax(0, 1fr); }
 .libbody h3 { margin: 0 0 8px; font-size: 12px; font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 500; display: flex; justify-content: space-between; gap: 8px; }
 .libbody h3 a { font-family: var(--body); letter-spacing: 0; text-transform: none; font-size: 12px; }
 .group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
@@ -242,17 +258,18 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     <button class="cat" id="cat-hands"><span class="key">1</span><span class="label">HANDS</span><span class="count">—</span></button>
     <button class="cat" id="cat-feet"><span class="key">2</span><span class="label">FEET</span><span class="count">—</span></button>
     <button class="cat" id="cat-fills"><span class="key">3</span><span class="label">FILLS</span><span class="count">—</span></button>
-    <button class="cat" id="cat-songs"><span class="key">4</span><span class="label">SONGS</span><span class="count">—</span></button>
+    <button class="cat" id="cat-beats"><span class="key">4</span><span class="label">BEATS</span><span class="count">—</span></button>
+    <button class="cat" id="cat-songs"><span class="key">5</span><span class="label">SONGS</span><span class="count">—</span></button>
   </nav>
   <div class="songsel" id="songSel" hidden><span>Песни в SONGS:</span><div class="modes" id="songChips" role="group" aria-label="Какие песни"></div></div>
 
   <dialog class="ask" id="askSongs" aria-labelledby="askTitle">
     <h2 id="askTitle">Какие песни сегодня?</h2>
-    <p>Блок SONGS в этой тренировке будет брать песни только отсюда.</p>
+    <p id="askText">Блок SONGS в этой тренировке будет брать песни только отсюда.</p>
     <div class="groups" id="groupBtns"></div>
     <div class="row">
-      <span class="keys"><kbd>1</kbd>–<kbd>3</kbd> выбрать · <kbd>Esc</kbd> отмена</span>
-      <button class="btn" id="askCancel" type="button">Отмена</button>
+      <span class="keys"><kbd>1</kbd>–<kbd>9</kbd> выбрать · <kbd>Esc</kbd> отмена</span>
+      <span class="row"><button class="btn" id="askBack" type="button" hidden>Назад</button><button class="btn" id="askCancel" type="button">Отмена</button></span>
     </div>
   </dialog>
 
@@ -287,6 +304,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
         <h2 id="nowName">Выбери тренировку или переключись на «Свободно»</h2>
         <div class="row">
           <button class="btn star" id="starBtn" aria-pressed="false" disabled>☆ Важное</button>
+          <button class="btn done" id="doneBtn" aria-pressed="false" hidden>Уверенно</button>
           <button class="btn" id="reroll" disabled>Другое из категории</button>
           <select class="tracksel" id="trackSel" hidden aria-label="Какую дорожку показывать"></select>
         </div>
@@ -318,6 +336,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     <label class="toggle"><input type="checkbox" id="drumsMix" checked> Барабаны в звуке</label>
     <label class="toggle"><input type="checkbox" id="othersMix" checked> Остальные инструменты в звуке</label>
     <label class="toggle"><input type="checkbox" id="cueOn" checked> Сигнал за 3 секунды</label>
+    <label class="toggle"><input type="checkbox" id="numsOn" checked> Цифры вместо нот</label>
   </div>
 
   <p class="keys" id="keysHelp"></p>
@@ -336,8 +355,8 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
 <script>
 (() => {
   const REPO = "https://github.com/znogoud88/drum-randomizer";
-  const CATS = ["hands", "feet", "fills", "songs"];
-  const CAT_LABEL = { hands: "HANDS", feet: "FEET", fills: "FILLS", songs: "SONGS" };
+  const CATS = ["hands", "feet", "fills", "beats", "songs"];
+  const CAT_LABEL = { hands: "HANDS", feet: "FEET", fills: "FILLS", beats: "BEATS", songs: "SONGS" };
   const DAY = 86400000;
   const $ = (id) => document.getElementById(id);
   const statusEl = $("status");
@@ -368,7 +387,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   const base = new URL(".", location.href).href;
   const paper = $("paper");
   const api = new alphaTab.AlphaTabApi($("at"), {
-    core: { useWorkers: false, fontDirectory: base + "vendor/font/", logLevel: "warning" },
+    core: { useWorkers: false, fontDirectory: base + "vendor/font/", logLevel: "warning", includeNoteBounds: true },
     display: { layoutMode: "page", staveProfile: "default", scale: 1.15 },
     notation: {
       elements: new Map(["scoreTitle", "scoreSubTitle", "scoreArtist", "scoreAlbum", "scoreWords", "scoreMusic", "scoreWordsAndMusic", "scoreCopyright"].map((k) => [k, false])),
@@ -451,9 +470,9 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     renderPlay();
     noSaveTempo = (opts.tempoFactor || 1) !== 1;
     api.stop();
-    $("nowCat").textContent = (CAT_LABEL[ex.category] || ex.category) + (noSaveTempo ? " · темп " + Math.round(opts.tempoFactor * 100) + "% от обычного" : "");
-    $("nowName").textContent = ex.name;
-    renderStar(); renderCats();
+    $("nowCat").textContent = (CAT_LABEL[ex.category] || ex.category) + (ex.song ? " · " + songTitle(ex) : "") + (noSaveTempo ? " · темп " + Math.round(opts.tempoFactor * 100) + "% от обычного" : "");
+    $("nowName").textContent = exName(ex);
+    renderStar(); renderDone(); renderCats();
     try {
       const bytes = await bytesFor(ex);
       if (seq !== loadSeq) return;
@@ -486,6 +505,42 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       setStatus("Не получилось открыть " + ex.name + ": " + e.message, true);
     }
   }
+
+  // ---------- MIDI numbers over the note heads ----------
+  // Like the drum tab in Guitar Pro: each drum note shows its MIDI number, at the height of the real note.
+  // The staff, stems, beams, R/L text and accents stay; only the note heads are covered by the numbers.
+  let numsBox = null;
+  function renderNums() {
+    if (numsBox) { numsBox.remove(); numsBox = null; }
+    const s = api.score, lookup = api.renderer && api.renderer.boundsLookup;
+    if (!s || !lookup || !$("numsOn").checked) return;
+    const surface = $("at").querySelector(".at-surface") || $("at");
+    const box = document.createElement("div"); box.className = "nums";
+    const fs = Math.round(api.settings.display.scale * 9.5);
+    box.style.setProperty("--numfs", fs + "px");
+    for (const sys of lookup.staffSystems) for (const mbb of sys.bars) for (const bb of mbb.bars) {
+      if (!bb.bar.staff.isPercussion) continue;
+      const arts = bb.bar.staff.track.percussionArticulations;
+      for (const beat of bb.beats) for (const nb of beat.notes || []) {
+        const n = nb.note;
+        // Guitar Pro files carry their own drum map; without one the articulation value is the MIDI number itself
+        const art = arts && arts.length ? arts[n.percussionArticulation] : null;
+        const midi = art ? art.outputMidiNumber : n.percussionArticulation;
+        if (!(midi > 0)) continue;
+        const r = nb.noteHeadBounds;
+        const el = document.createElement("span");
+        el.textContent = midi;
+        if (n.accentuated) el.classList.add("acc");
+        el.style.left = (r.x + r.w / 2) + "px";
+        el.style.top = (r.y + r.h / 2) + "px";
+        box.appendChild(el);
+      }
+    }
+    surface.appendChild(box); // inside the surface, over its partial renders; alphaTab's cursor layer stays on top
+    numsBox = box;
+  }
+  api.postRenderFinished.on(renderNums);
+  $("numsOn").addEventListener("change", renderNums);
 
   // ---------- smart random ----------
   const isStar = (ex) => !!store.get("star:" + ex.id, false);
@@ -528,18 +583,46 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     api.renderTracks(shownTracks(current, s).map((i) => s.tracks[i]));
   });
 
-  // ---------- song groups ----------
-  // SONGS are split by the file-name prefix ("dranix-…", "lefort-…"). Files without one of these prefixes are "Normal bands".
+  // ---------- songs: groups, songs, parts ----------
+  // A song file is named band_song_part.gp (build-manifest.mjs splits it into band / song / part).
+  // Bands "dranix" and "lefort" are their own groups; every other band is "Normal bands".
   const SONG_PREFIXES = [{ id: "dranix", label: "Dranix" }, { id: "lefort", label: "Lefort" }];
   const SONG_GROUPS = [...SONG_PREFIXES, { id: "bands", label: "Normal bands" }];
   function songGroupOf(ex) {
-    const n = ex.name.toLowerCase();
-    const g = SONG_PREFIXES.find((p) => n.startsWith(p.id + "-"));
+    const g = SONG_PREFIXES.find((p) => (ex.band || "").toLowerCase() === p.id);
     return g ? g.id : "bands";
   }
   const groupLabel = (id) => (SONG_GROUPS.find((g) => g.id === id) || { label: "Все" }).label;
   const inGroup = (ex, group) => ex.category !== "songs" || !group || songGroupOf(ex) === group;
   const songsIn = (group) => exercises.filter((e) => e.category === "songs" && inGroup(e, group));
+  const pretty = (s) => (s || "").split("-").filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+  const songKey = (ex) => ex.band + "_" + ex.song;
+  const songTitle = (ex) => pretty(ex.band) + " — " + pretty(ex.song);
+  const exName = (ex) => ex.song ? pretty(ex.part) : ex.name; // what the deck and the "next" line call it
+  // parts of one song in alphabetical order; "learned" parts are marked by the player and kept in the browser
+  const partsOf = (key) => exercises.filter((e) => e.category === "songs" && songKey(e) === key).sort((a, b) => a.part.localeCompare(b.part));
+  const isDone = (ex) => !!store.get("done:" + ex.id, false);
+  const picksOf = (key) => store.get("picks:" + key, 0);
+  // every song of a group, most often chosen first
+  function songsOf(group) {
+    const keys = new Map();
+    for (const e of songsIn(group)) if (!keys.has(songKey(e))) keys.set(songKey(e), e);
+    return [...keys.values()].sort((a, b) => picksOf(songKey(b)) - picksOf(songKey(a)) || songTitle(a).localeCompare(songTitle(b)));
+  }
+  // The SONGS slots of a workout feed one song part by part: the first unlearned parts in order, one per slot;
+  // more slots than unlearned parts repeats them; a song with every part learned gives random parts.
+  // used: exercise ids already planned in this workout; slot: how many SONGS slots were planned before this one.
+  function pickSongPart(key, used, slot = 0) {
+    const parts = partsOf(key);
+    if (!parts.length) return null;
+    const pending = parts.filter((e) => !isDone(e));
+    if (!pending.length) {
+      let pool = parts.filter((e) => !used.has(e.id));
+      if (!pool.length) pool = parts;
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+    return pending.find((e) => !used.has(e.id)) || pending[slot % pending.length];
+  }
   let songGroup = store.get("songs", null); // free mode filter; null = all songs. A workout uses its own choice (run.songGroup).
   function setSongGroup(id) { songGroup = id; store.set("songs", id); renderSongChips(); renderCats(); }
   function renderSongChips() {
@@ -658,33 +741,61 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   }
   document.addEventListener("visibilitychange", () => { if (run && !run.done) keepAwake(); });
 
-  // Before a workout with a SONGS block: ask which song group to play today.
+  // Before a workout with a SONGS block: ask which group, then which song of it, to play today.
   function askSongs(w) {
-    if (!w.blocks.some((b) => b.category === "songs")) return startWorkout(w, null);
+    if (!w.blocks.some((b) => b.category === "songs")) return startWorkout(w, null, null);
     const dlg = $("askSongs"), box = $("groupBtns");
-    box.textContent = "";
-    let focus = null;
-    const last = store.get("workoutSongs", null);
-    SONG_GROUPS.forEach((g, k) => {
-      const n = songsIn(g.id).length;
-      const b = document.createElement("button"); b.type = "button";
-      const name = document.createElement("b"); name.textContent = g.label;
-      const info = document.createElement("span"); info.textContent = (k + 1) + " · " + (n ? n + " " + plural(n) : "пока пусто");
-      b.append(name, info);
-      b.disabled = !n;
-      if (n && (g.id === last || !focus)) { if (g.id === last) b.classList.add("last"); focus = b; }
-      b.addEventListener("click", () => { dlg.close(); store.set("workoutSongs", g.id); startWorkout(w, g.id); });
-      box.appendChild(b);
-    });
+    const fill = (items) => {
+      box.textContent = "";
+      let focus = null;
+      items.forEach((it, k) => {
+        const b = document.createElement("button"); b.type = "button";
+        const name = document.createElement("b"); name.textContent = it.label;
+        const info = document.createElement("span"); info.textContent = (k + 1) + " · " + it.info;
+        b.append(name, info);
+        b.disabled = !!it.disabled;
+        if (!b.disabled && (it.last || !focus)) { if (it.last) b.classList.add("last"); focus = b; }
+        b.addEventListener("click", it.go);
+        box.appendChild(b);
+      });
+      if (focus) focus.focus();
+    };
+    const step1 = () => {
+      $("askTitle").textContent = "Какие песни сегодня?";
+      $("askText").textContent = "Сначала группа, потом песня. Блок SONGS будет брать части только этой песни.";
+      $("askBack").hidden = true;
+      const last = store.get("workoutSongs", null);
+      fill(SONG_GROUPS.map((g) => {
+        const n = songsOf(g.id).length;
+        return { label: g.label, info: n ? n + " " + pluralSongs(n) : "пока пусто", disabled: !n, last: g.id === last, go: () => step2(g.id) };
+      }));
+    };
+    const step2 = (group) => {
+      $("askTitle").textContent = groupLabel(group) + ": какая песня?";
+      $("askText").textContent = "Части песни идут по порядку, пока не отметишь их «уверенно». Отмеченные все — части наугад.";
+      $("askBack").hidden = false;
+      $("askBack").onclick = step1;
+      const last = store.get("workoutSong", null);
+      fill(songsOf(group).map((ex) => {
+        const key = songKey(ex), parts = partsOf(key), done = parts.filter(isDone).length;
+        return {
+          label: songTitle(ex), last: key === last,
+          info: parts.length + " " + pluralParts(parts.length) + (done ? ", уверенно " + done : "") + (picksOf(key) ? " · выбирал " + picksOf(key) : ""),
+          go: () => { dlg.close(); store.set("workoutSongs", group); store.set("workoutSong", key); store.set("picks:" + key, picksOf(key) + 1); startWorkout(w, group, key); },
+        };
+      }));
+    };
+    step1();
     dlg.showModal();
-    if (focus) focus.focus();
   }
   $("askCancel").addEventListener("click", () => $("askSongs").close());
+  function pluralSongs(n) { const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? "песня" : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? "песни" : "песен"; }
+  function pluralParts(n) { const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? "часть" : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? "части" : "частей"; }
 
-  function startWorkout(w, group = null) {
+  function startWorkout(w, group = null, song = null) {
     audio(); loadCue();
     const steps = expand(w);
-    run = { w, steps, idx: -1, pausedAt: 0, pausedTotal: 0, plan: new Map(), used: new Set(), elapsedBefore: 0, songGroup: group };
+    run = { w, steps, idx: -1, pausedAt: 0, pausedTotal: 0, plan: new Map(), used: new Set(), elapsedBefore: 0, songGroup: group, song };
     $("picker").hidden = true; $("clock").hidden = false;
     $("wPause").hidden = false; $("wSkip").hidden = false; $("wStop").textContent = "Закончить"; stopArmed = false;
     renderDots();
@@ -696,7 +807,8 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   function exerciseFor(i) {
     if (!run.plan.has(i)) {
       const st = run.steps[i];
-      const ex = pickSmart(st.category, run.used, run.songGroup);
+      const slot = [...run.plan.keys()].filter((j) => run.steps[j].category === "songs").length;
+      const ex = st.category === "songs" && run.song ? pickSongPart(run.song, run.used, slot) : pickSmart(st.category, run.used, run.songGroup);
       if (ex) run.used.add(ex.id);
       run.plan.set(i, ex);
     }
@@ -767,13 +879,13 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     const rem = remainingSec();
     $("stepLabel").textContent = st.kind === "play" ? st.label : st.label;
     $("stepSub").textContent = st.kind === "play"
-      ? [st.category === "songs" && run.songGroup ? groupLabel(run.songGroup) : "", st.sets > 1 ? "подход " + st.set + " из " + st.sets : "", st.tempo !== 1 ? "темп " + Math.round(st.tempo * 100) + "%" : ""].filter(Boolean).join(" · ")
+      ? [st.category === "songs" && run.song ? pretty(run.song.split("_")[0]) + " — " + pretty(run.song.split("_")[1]) : st.category === "songs" && run.songGroup ? groupLabel(run.songGroup) : "", st.sets > 1 ? "подход " + st.set + " из " + st.sets : "", st.tempo !== 1 ? "темп " + Math.round(st.tempo * 100) + "%" : ""].filter(Boolean).join(" · ")
       : "";
     $("remaining").textContent = fmt(rem);
     const n = run.steps[run.idx + 1];
     let nextText = "";
     if (n) {
-      if (n.kind === "play") { const ex = run.plan.get(run.idx + 1); nextText = "Дальше: <b>" + n.label + "</b>" + (ex ? " · " + escapeHtml(ex.name) : ""); }
+      if (n.kind === "play") { const ex = run.plan.get(run.idx + 1); nextText = "Дальше: <b>" + n.label + "</b>" + (ex ? " · " + escapeHtml(exName(ex)) : ""); }
       else if (n.kind === "rest") { const n2 = run.steps[run.idx + 2]; nextText = "Дальше: отдых " + fmt(n.sec) + (n2 && n2.kind === "play" ? ", потом <b>" + n2.label + "</b>" : n2 ? ", потом <b>" + n2.label + "</b>" : ""); }
       else nextText = "Дальше: <b>" + n.label + "</b>";
     } else nextText = "Последний шаг";
@@ -822,7 +934,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     $("paperEmpty").textContent = title;
     $("paperEmpty").hidden = false;
     enableTransport(false);
-    renderStar(); renderCats();
+    renderStar(); renderDone(); renderCats();
   }
 
   function finish() {
@@ -869,7 +981,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     $("clock").hidden = m !== "workout" || !run;
     $("reroll").hidden = m !== "free";
     $("keysHelp").innerHTML = m === "free"
-      ? "<kbd>Пробел</kbd> играть или пауза · <kbd>1</kbd>–<kbd>4</kbd> категории · <kbd>←</kbd> <kbd>→</kbd> темп ±5 BPM"
+      ? "<kbd>Пробел</kbd> играть или пауза · <kbd>1</kbd>–<kbd>5</kbd> категории · <kbd>←</kbd> <kbd>→</kbd> темп ±5 BPM"
       : "<kbd>Пробел</kbd> пауза всей тренировки · <kbd>N</kbd> следующий шаг · <kbd>←</kbd> <kbd>→</kbd> темп ±5 BPM";
     if (m === "workout" && !run) { api.stop(); }
   }
@@ -902,10 +1014,10 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   $("faster").addEventListener("click", () => stepBpm(5));
   $("resetTempo").addEventListener("click", () => setPct(100, true));
 
-  for (const id of ["metro", "countin", "drumsMix", "othersMix", "cueOn"]) {
+  for (const id of ["metro", "countin", "drumsMix", "othersMix", "cueOn", "numsOn"]) {
     const el = $(id);
     el.checked = store.get("t:" + id, el.checked);
-    el.addEventListener("change", () => { store.set("t:" + id, el.checked); if (scoreReady) applyPlayback(); });
+    el.addEventListener("change", () => { store.set("t:" + id, el.checked); if (scoreReady && id !== "numsOn") applyPlayback(); });
   }
 
   function enableTransport(on) {
@@ -920,6 +1032,15 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   }
   function toggleStar(ex) { store.set("star:" + ex.id, !isStar(ex)); renderStar(); renderLib(); }
   $("starBtn").addEventListener("click", () => current && toggleStar(current));
+
+  // ---------- "уверенно": a learned song part ----------
+  function renderDone() {
+    const b = $("doneBtn");
+    b.hidden = !current || !current.song;
+    b.setAttribute("aria-pressed", !!current && isDone(current));
+  }
+  function toggleDone(ex) { store.set("done:" + ex.id, !isDone(ex)); renderDone(); renderLib(); if (run && !run.done) renderClock(); }
+  $("doneBtn").addEventListener("click", () => current && toggleDone(current));
 
   $("playBtn").addEventListener("click", () => {
     if (run && !run.done) return togglePause();
@@ -943,7 +1064,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       e.preventDefault();
       if (inRun) togglePause(); else if (current) $("playBtn").click();
     } else if (e.code === "KeyN" && inRun) { $("wSkip").click(); }
-    else if (/^Digit[1-4]$/.test(e.code) && mode === "free") { audio(); pickFree(CATS[Number(e.code.slice(5)) - 1]); }
+    else if (/^Digit[1-5]$/.test(e.code) && mode === "free") { audio(); pickFree(CATS[Number(e.code.slice(5)) - 1]); }
     else if (e.code === "ArrowLeft" && current) { e.preventDefault(); stepBpm(-5); }
     else if (e.code === "ArrowRight" && current) { e.preventDefault(); stepBpm(5); }
   });
@@ -973,21 +1094,36 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       const hl = document.createElement("span"); hl.textContent = CAT_LABEL[c]; h.appendChild(hl);
       const up = document.createElement("a"); up.href = REPO + "/upload/main/exercises/" + c; up.target = "_blank"; up.rel = "noopener"; up.textContent = "добавить"; h.appendChild(up);
       g.appendChild(h);
-      const ul = document.createElement("ul");
       const items = exercises.filter((e) => e.category === c);
-      if (!items.length) { const li = document.createElement("li"); li.className = "none"; li.textContent = "Пока пусто"; ul.appendChild(li); }
-      for (const ex of items) {
-        const li = document.createElement("li");
-        const s = document.createElement("button"); s.className = "s"; s.type = "button";
-        s.setAttribute("aria-pressed", isStar(ex)); s.setAttribute("aria-label", "Важное: " + ex.name); s.textContent = "★";
-        s.addEventListener("click", () => toggleStar(ex));
-        const n = document.createElement("button"); n.className = "n"; n.type = "button";
-        n.textContent = ex.name;
-        const sm = document.createElement("small"); sm.textContent = ago(lastPlayed(ex)); n.appendChild(sm);
-        n.addEventListener("click", () => { if (run && !run.done) return setStatus("Во время тренировки упражнения выбирает таймер.", true); audio(); loadExercise(ex, { autoplay: true }); });
-        li.append(s, n); ul.appendChild(li);
-      }
-      g.appendChild(ul); list.appendChild(g);
+      if (!items.length) { const ul = document.createElement("ul"); const li = document.createElement("li"); li.className = "none"; li.textContent = "Пока пусто"; ul.appendChild(li); g.appendChild(ul); }
+      const addItems = (ul, list) => {
+        for (const ex of list) {
+          const li = document.createElement("li");
+          const s = document.createElement("button"); s.className = "s"; s.type = "button";
+          s.setAttribute("aria-pressed", isStar(ex)); s.setAttribute("aria-label", "Важное: " + ex.name); s.textContent = "★";
+          s.addEventListener("click", () => toggleStar(ex));
+          const n = document.createElement("button"); n.className = "n"; n.type = "button";
+          n.textContent = exName(ex);
+          const sm = document.createElement("small"); sm.textContent = ago(lastPlayed(ex)); n.appendChild(sm);
+          n.addEventListener("click", () => { if (run && !run.done) return setStatus("Во время тренировки упражнения выбирает таймер.", true); audio(); loadExercise(ex, { autoplay: true }); });
+          if (ex.song) {
+            li.className = "song";
+            const d = document.createElement("button"); d.className = "d"; d.type = "button";
+            d.setAttribute("aria-pressed", isDone(ex)); d.setAttribute("aria-label", "Уверенно: " + ex.name); d.textContent = isDone(ex) ? "✓" : "○";
+            d.addEventListener("click", () => toggleDone(ex));
+            li.append(s, d, n);
+          } else li.append(s, n);
+          ul.appendChild(li);
+        }
+      };
+      if (c === "songs") {
+        // one heading per song, its parts under it, songs grouped as in the dialog
+        for (const grp of SONG_GROUPS) for (const song of songsOf(grp.id)) {
+          const h4 = document.createElement("h4"); h4.textContent = songTitle(song) + (grp.id === "bands" ? "" : " · " + grp.label); g.appendChild(h4);
+          const ul = document.createElement("ul"); addItems(ul, partsOf(songKey(song))); g.appendChild(ul);
+        }
+      } else { const ul = document.createElement("ul"); addItems(ul, items); g.appendChild(ul); }
+      list.appendChild(g);
     }
   }
   $("lib").addEventListener("toggle", () => { if ($("lib").open) renderLib(); });
@@ -1008,7 +1144,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   })();
   setMode(mode);
   renderCats();
-  window.__drum = { get run() { return run; }, enterStep: (i) => enterStep(i), get current() { return current; }, weight, pickSmart, expand, get workouts() { return workouts; }, startWorkout };
+  window.__drum = { get run() { return run; }, enterStep: (i) => enterStep(i), get current() { return current; }, weight, pickSmart, pickSongPart, songsOf, partsOf, expand, get workouts() { return workouts; }, startWorkout, loadExercise, get exercises() { return exercises; }, renderNums };
 })();
 </script>
 </body>

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
-const CATS = ["hands", "feet", "fills", "songs"];
+const CATS = ["hands", "feet", "fills", "beats", "songs"];
 const EXT = new Set([".gp", ".gpx", ".gp5", ".gp4", ".gp3"]);
 const SOUND_EXT = new Set([".mp3", ".wav", ".ogg", ".m4a"]);
 
@@ -13,13 +13,16 @@ for (const cat of CATS) {
   const dir = path.join(root, "exercises", cat);
   if (!fs.existsSync(dir)) continue;
   for (const file of fs.readdirSync(dir).sort()) {
-    if (!EXT.has(path.extname(file).toLowerCase())) continue;
-    exercises.push({
-      id: cat + "/" + file,
-      category: cat,
-      name: path.basename(file, path.extname(file)),
-      url: "exercises/" + cat + "/" + encodeURIComponent(file),
-    });
+    if (!EXT.has(path.extname(file).toLowerCase())) continue; // subfolders (like songs/later) are skipped too
+    const name = path.basename(file, path.extname(file));
+    const ex = { id: cat + "/" + file, category: cat, name, url: "exercises/" + cat + "/" + encodeURIComponent(file) };
+    if (cat === "songs") {
+      // Songs are named band_song_part.gp. A file without a part is a whole song, not a practice piece: left out.
+      const [band, song, ...rest] = name.split("_");
+      if (!band || !song || !rest.length) { console.warn("  songs/" + file + ": not band_song_part, skipped"); continue; }
+      Object.assign(ex, { band, song, part: rest.join("_") });
+    }
+    exercises.push(ex);
   }
 }
 
