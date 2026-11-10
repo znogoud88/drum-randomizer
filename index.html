@@ -248,6 +248,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       </div>
     </div>
     <div id="status" role="status" aria-live="polite">Загружаю звук…</div>
+    <button class="btn" id="reloadBtn" hidden>Перезагрузить страницу</button>
   </header>
 
   <!-- workout: picker -->
@@ -305,6 +306,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
         <div class="row">
           <button class="btn star" id="starBtn" aria-pressed="false" disabled>☆ Важное</button>
           <button class="btn done" id="doneBtn" aria-pressed="false" hidden>Уверенно</button>
+          <button class="btn" id="restartBtn" disabled title="Упражнение заново, с отсчётом">Сначала</button>
           <button class="btn" id="reroll" disabled>Другое из категории</button>
           <select class="tracksel" id="trackSel" hidden aria-label="Какую дорожку показывать"></select>
         </div>
@@ -366,6 +368,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   const store = {
     get(k, d) { try { const v = localStorage.getItem("drumrand:" + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem("drumrand:" + k, JSON.stringify(v)); } catch {} },
+    del(k) { try { localStorage.removeItem("drumrand:" + k); } catch {} },
   };
 
   let exercises = [];
@@ -449,8 +452,21 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     set(otherTracks, lv.others != null ? gainFor(lv.others, DRUMS_LUFS - BACKING_LU) : 1);
   }
   function maybeStart() {
-    if (wantAutoplay && soundReady && scoreReady) { wantAutoplay = false; api.play(); }
+    if (wantAutoplay && soundReady && scoreReady) { wantAutoplay = false; requestPlay(); }
   }
+  // Every start of sound goes through here: if nothing plays 3 s later, the audio engine is stuck
+  // (seen after a long pause). A reload fixes it: the page works offline and the workout resumes where it was.
+  let playWatch = null;
+  function requestPlay() {
+    api.play();
+    clearTimeout(playWatch);
+    playWatch = setTimeout(() => {
+      if (playing || (run && run.pausedAt)) return;
+      setStatus("Звук не запустился. Нажми «Перезагрузить страницу»: тренировка продолжится с этого места, интернет не нужен.", true);
+      $("reloadBtn").hidden = false;
+    }, 3000);
+  }
+  $("reloadBtn").addEventListener("click", () => { if (run && !run.done) saveRun(); location.reload(); });
 
   async function bytesFor(ex) {
     if (byteCache.has(ex.id)) return byteCache.get(ex.id);
@@ -853,6 +869,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       }
     }
     renderClock();
+    saveRun();
   }
 
   function remainingSec() {
@@ -868,6 +885,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       const whole = Math.ceil(rem);
       if (whole <= 3 && whole >= 1 && run.lastCueSec !== whole && rem > 0) { run.lastCueSec = whole; cue(); }
       if (rem <= 0) { enterStep(run.idx + 1); return; }
+      if (Math.floor(rem) % 5 === 0 && run.lastSaveSec !== Math.floor(rem)) { run.lastSaveSec = Math.floor(rem); saveRun(); }
     }
     renderClock();
   }
@@ -909,7 +927,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     if (run.pausedAt) {
       run.pausedTotal += performance.now() - run.pausedAt; run.pausedAt = 0;
       $("clock").classList.remove("paused"); $("wPause").textContent = "Пауза";
-      if (st.kind === "play") { if (soundReady && scoreReady) api.play(); else wantAutoplay = true; }
+      if (st.kind === "play") { if (soundReady && scoreReady) requestPlay(); else wantAutoplay = true; }
       setStatus("Продолжаем.");
     } else {
       run.pausedAt = performance.now();
@@ -919,6 +937,47 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     }
     renderClock();
     renderPlay();
+    saveRun();
+  }
+
+  // ---------- the workout survives a page reload ----------
+  // Saved on every step change, pause and every few seconds; restored (paused) when the page opens again within 6 hours.
+  function saveRun() {
+    if (!run || run.done) return;
+    const now = run.pausedAt || performance.now();
+    store.set("run", {
+      w: run.w.id, idx: run.idx, songGroup: run.songGroup, song: run.song, elapsedBefore: run.elapsedBefore,
+      stepElapsed: run.idx >= 0 ? now - run.stepStart - run.pausedTotal : 0,
+      plan: [...run.plan].map(([i, ex]) => [i, ex && ex.id]), used: [...run.used], at: Date.now(),
+    });
+  }
+  function clearRun() { store.del("run"); }
+  function resumeRun() {
+    const s = store.get("run", null);
+    if (!s || Date.now() - s.at > 6 * 3600e3) { clearRun(); return false; }
+    const w = workouts.find((x) => x.id === s.w);
+    if (!w || s.idx < 0) { clearRun(); return false; }
+    setMode("workout");
+    audio(); loadCue();
+    run = { w, steps: expand(w), idx: -1, pausedAt: 0, pausedTotal: 0, plan: new Map(), used: new Set(s.used), elapsedBefore: s.elapsedBefore, songGroup: s.songGroup, song: s.song };
+    for (const [i, id] of s.plan) { const ex = exercises.find((e) => e.id === id); if (ex) run.plan.set(i, ex); }
+    if (s.idx >= run.steps.length) { clearRun(); run = null; return false; }
+    $("picker").hidden = true; $("clock").hidden = false;
+    $("wPause").hidden = false; $("wSkip").hidden = false; $("wStop").textContent = "Закончить"; stopArmed = false;
+    renderDots();
+    keepAwake();
+    enterStep(s.idx);
+    run.elapsedBefore = s.elapsedBefore; // enterStep adds nothing for idx -1, kept explicit
+    run.stepStart = performance.now() - Math.max(0, s.stepElapsed);
+    // paused until the first click: the browser allows sound only after a gesture anyway
+    wantAutoplay = false;
+    run.pausedAt = performance.now();
+    $("clock").classList.add("paused"); $("wPause").textContent = "Продолжить";
+    clearInterval(tick); tick = setInterval(update, 100);
+    renderClock(); renderPlay();
+    saveRun();
+    setStatus("Тренировка восстановлена на том же месте. Пробел или «Продолжить».");
+    return true;
   }
 
   // Free play and the end screen show no exercise: blank the deck and cover the notation.
@@ -941,6 +1000,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     clearInterval(tick);
     clearDeck("Тренировка закончена", run.w.title);
     run.done = true;
+    clearRun();
     $("clock").classList.remove("rest", "paused"); $("clock").classList.add("done");
     $("stepLabel").textContent = "Готово";
     $("stepSub").textContent = run.w.title;
@@ -960,6 +1020,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     api.stop();
     try { wakeLock && wakeLock.release(); } catch {}
     run = null;
+    clearRun();
     $("wPause").hidden = false; $("wSkip").hidden = false; $("wStop").textContent = "Закончить";
     $("clock").hidden = true; $("picker").hidden = mode !== "workout";
     setStatus("Выбери тренировку.");
@@ -1021,8 +1082,17 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   }
 
   function enableTransport(on) {
-    for (const id of ["playBtn", "speed", "slower", "faster", "resetTempo", "starBtn"]) $(id).disabled = !on;
+    for (const id of ["playBtn", "speed", "slower", "faster", "resetTempo", "starBtn", "restartBtn"]) $(id).disabled = !on;
   }
+  // "Сначала": the exercise from the top, with the count-in. In a workout the step timer keeps running (and a pause ends).
+  $("restartBtn").addEventListener("click", () => {
+    if (!current) return;
+    audio();
+    if (run && !run.done && run.pausedAt) togglePause();
+    api.stop();
+    if (soundReady && scoreReady) { applyPlayback(); requestPlay(); } else wantAutoplay = true;
+    renderPlay();
+  });
 
   // ---------- stars ----------
   function renderStar() {
@@ -1044,7 +1114,8 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
 
   $("playBtn").addEventListener("click", () => {
     if (run && !run.done) return togglePause();
-    if (soundReady && scoreReady) api.playPause(); else { wantAutoplay = !wantAutoplay; renderPlay(); }
+    if (!(soundReady && scoreReady)) { wantAutoplay = !wantAutoplay; renderPlay(); }
+    else if (playing) api.pause(); else requestPlay();
   });
   $("reroll").addEventListener("click", () => current && pickFree(current.category));
   for (const c of CATS) $("cat-" + c).addEventListener("click", () => { audio(); pickFree(c); });
@@ -1141,6 +1212,15 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
       setStatus("Не загрузился список: " + e.message, true);
     }
     renderPicker(); renderCats(); renderLib(); renderSongChips();
+    resumeRun();
+    // Offline: the service worker keeps the page, sound bank, font and every exercise file in the browser cache.
+    if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+      navigator.serviceWorker.register("sw.js").then((reg) => {
+        const urls = exercises.map((e) => e.url).concat(countdownUrl ? [countdownUrl] : []);
+        const send = () => (reg.active || navigator.serviceWorker.controller) && (reg.active || navigator.serviceWorker.controller).postMessage({ type: "precache", urls });
+        navigator.serviceWorker.ready.then(send);
+      }).catch((e) => console.warn("service worker", e));
+    }
   })();
   setMode(mode);
   renderCats();
