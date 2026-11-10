@@ -20,6 +20,9 @@ self.addEventListener("message", (e) => {
   if (!e.data || e.data.type !== "precache") return;
   e.waitUntil(caches.open(VERSION).then(async (c) => {
     for (const u of e.data.urls) { if (!(await c.match(u))) { try { await c.add(u); } catch {} } }
+    // exercise files that are no longer in the list (renamed, deleted, or an older version of a changed file)
+    const keep = new Set(e.data.urls.map((u) => new URL(u, location.href).href));
+    for (const req of await c.keys()) if (req.url.includes("/exercises/") && !keep.has(req.url)) await c.delete(req);
   }));
 });
 

@@ -2,6 +2,7 @@
 // Runs in the GitHub Pages workflow on every push; run it locally before `node scripts/serve.mjs`.
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
 const CATS = ["hands", "feet", "fills", "beats", "songs"];
@@ -15,7 +16,9 @@ for (const cat of CATS) {
   for (const file of fs.readdirSync(dir).sort()) {
     if (!EXT.has(path.extname(file).toLowerCase())) continue; // subfolders (like songs/later) are skipped too
     const name = path.basename(file, path.extname(file));
-    const ex = { id: cat + "/" + file, category: cat, name, url: "exercises/" + cat + "/" + encodeURIComponent(file) };
+    // `v` is a content hash: the page adds it to the file URL, so a changed file is fetched anew instead of the offline-cached copy.
+    const v = crypto.createHash("md5").update(fs.readFileSync(path.join(dir, file))).digest("hex").slice(0, 8);
+    const ex = { id: cat + "/" + file, category: cat, name, url: "exercises/" + cat + "/" + encodeURIComponent(file), v };
     if (cat === "songs") {
       // Songs are named band_song_part.gp. A file without a part is a whole song, not a practice piece: left out.
       const [band, song, ...rest] = name.split("_");

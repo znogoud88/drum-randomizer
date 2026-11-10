@@ -85,11 +85,19 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid 
 .bar { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; }
 .bar > i { display: block; height: 100%; width: 0; background: var(--brass); border-radius: 999px; transition: width .4s linear; }
 .clock-foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center; font-family: var(--mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* Step dots: one per step, coloured by category (same colours as the block names in the workout cards).
+   Steps still ahead are faded, done ones solid, the current one outlined. Rests are the short grey ones. */
 .steps { display: flex; gap: 3px; flex-wrap: wrap; }
-.steps i { width: 14px; height: 6px; border-radius: 2px; background: var(--line); }
+.steps i { width: 14px; height: 6px; border-radius: 2px; background: var(--c, var(--muted)); opacity: .3; }
 .steps i.r { width: 6px; }
-.steps i.d { background: var(--muted); }
-.steps i.c { background: var(--brass); }
+.steps i.d, .steps i.c { opacity: 1; }
+.steps i.c { outline: 2px solid var(--ink); outline-offset: 1px; }
+[data-cat="hands"] { --c: var(--brass); }
+[data-cat="feet"] { --c: var(--rest); }
+[data-cat="fills"] { --c: var(--ok); }
+[data-cat="beats"] { --c: var(--danger); }
+[data-cat="songs"] { --c: var(--ink); }
+.wcard li[data-cat] b::before { content: ""; display: inline-block; width: 12px; height: 6px; border-radius: 2px; background: var(--c); margin-right: 8px; vertical-align: middle; }
 
 /* clock and deck: stacked, side by side on wide screens while a workout runs */
 .top { display: grid; gap: 18px; min-width: 0; }
@@ -468,9 +476,11 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   }
   $("reloadBtn").addEventListener("click", () => { if (run && !run.done) saveRun(); location.reload(); });
 
+  // File URL with its content hash from exercises.json: a changed file gets a new URL, so the offline cache never serves the old one.
+  const exUrl = (ex) => ex.url + (ex.v ? "?v=" + ex.v : "");
   async function bytesFor(ex) {
     if (byteCache.has(ex.id)) return byteCache.get(ex.id);
-    const r = await fetch(ex.url);
+    const r = await fetch(exUrl(ex));
     if (!r.ok) throw new Error("файл не найден (" + r.status + ")");
     const bytes = new Uint8Array(await r.arrayBuffer());
     byteCache.set(ex.id, bytes);
@@ -708,7 +718,11 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   function expand(w) {
     const steps = [];
     for (const b of w.blocks) {
-      if (b.free) { steps.push({ kind: "free", label: b.label || "Свободная игра", sec: b.free * 60 }); continue; }
+      if (b.free) {
+        // `rest` of a free block is the break before it; it replaces the rest after the previous set.
+        if (b.rest) { if (steps.length && steps[steps.length - 1].kind === "rest") steps.pop(); steps.push({ kind: "rest", label: "Отдых", sec: b.rest * 60 }); }
+        steps.push({ kind: "free", label: b.label || "Свободная игра", sec: b.free * 60 }); continue;
+      }
       const sets = b.sets || 1;
       for (let i = 1; i <= sets; i++) {
         steps.push({ kind: "play", category: b.category, label: b.label || CAT_LABEL[b.category], set: i, sets, sec: b.play * 60, tempo: b.tempo || 1 });
@@ -734,8 +748,9 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
         const li = document.createElement("li");
         const name = document.createElement("b");
         const info = document.createElement("span");
-        if (b.free) { name.textContent = b.label || "Свободная игра"; info.textContent = b.free + " мин"; }
+        if (b.free) { name.textContent = b.label || "Свободная игра"; info.textContent = (b.rest ? "отдых " + b.rest + ", потом " : "") + b.free + " мин"; }
         else {
+          li.dataset.cat = b.category;
           name.textContent = (b.label ? b.label + " · " : "") + CAT_LABEL[b.category];
           info.textContent = (b.sets > 1 ? b.sets + " × " : "") + b.play + " мин" + (b.rest ? ", отдых " + b.rest : "") + (b.tempo && b.tempo !== 1 ? ", темп " + Math.round(b.tempo * 100) + "%" : "");
         }
@@ -918,7 +933,13 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
   function renderDots() {
     const box = $("stepDots"); box.textContent = "";
-    for (const st of run.steps) { const i = document.createElement("i"); if (st.kind === "rest") i.className = "r"; box.appendChild(i); }
+    for (const st of run.steps) {
+      const i = document.createElement("i");
+      if (st.kind === "rest") i.className = "r";
+      if (st.category) i.dataset.cat = st.category;
+      i.title = st.label + (st.sets > 1 ? " " + st.set + "/" + st.sets : "") + " · " + fmt(st.sec);
+      box.appendChild(i);
+    }
   }
 
   function togglePause() {
@@ -1216,7 +1237,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     // Offline: the service worker keeps the page, sound bank, font and every exercise file in the browser cache.
     if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
       navigator.serviceWorker.register("sw.js").then((reg) => {
-        const urls = exercises.map((e) => e.url).concat(countdownUrl ? [countdownUrl] : []);
+        const urls = exercises.map(exUrl).concat(countdownUrl ? [countdownUrl] : []);
         const send = () => (reg.active || navigator.serviceWorker.controller) && (reg.active || navigator.serviceWorker.controller).postMessage({ type: "precache", urls });
         navigator.serviceWorker.ready.then(send);
       }).catch((e) => console.warn("service worker", e));
