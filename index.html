@@ -635,19 +635,17 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     for (const e of songsIn(group)) if (!keys.has(songKey(e))) keys.set(songKey(e), e);
     return [...keys.values()].sort((a, b) => picksOf(songKey(b)) - picksOf(songKey(a)) || songTitle(a).localeCompare(songTitle(b)));
   }
-  // The SONGS slots of a workout feed one song part by part: the first unlearned parts in order, one per slot;
-  // more slots than unlearned parts repeats them; a song with every part learned gives random parts.
-  // used: exercise ids already planned in this workout; slot: how many SONGS slots were planned before this one.
-  function pickSongPart(key, used, slot = 0) {
+  // The SONGS slots of a workout take parts of one song, picked like exercises of any other category (weighted by how
+  // long ago a part was played, never-played first), among the unlearned parts; a song with every part learned uses them all.
+  // used: exercise ids already planned in this workout, not repeated while other parts are left.
+  function pickSongPart(key, used) {
     const parts = partsOf(key);
     if (!parts.length) return null;
     const pending = parts.filter((e) => !isDone(e));
-    if (!pending.length) {
-      let pool = parts.filter((e) => !used.has(e.id));
-      if (!pool.length) pool = parts;
-      return pool[Math.floor(Math.random() * pool.length)];
-    }
-    return pending.find((e) => !used.has(e.id)) || pending[slot % pending.length];
+    const base = pending.length ? pending : parts;
+    let pool = base.filter((e) => !used.has(e.id));
+    if (!pool.length) pool = base;
+    return weightedPick(pool);
   }
   let songGroup = store.get("songs", null); // free mode filter; null = all songs. A workout uses its own choice (run.songGroup).
   function setSongGroup(id) { songGroup = id; store.set("songs", id); renderSongChips(); renderCats(); }
@@ -668,6 +666,9 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
     let pool = all.filter((e) => !avoid.has(e.id));
     if (!pool.length) pool = all.filter((e) => !current || e.id !== current.id);
     if (!pool.length) pool = all;
+    return weightedPick(pool);
+  }
+  function weightedPick(pool) {
     const total = pool.reduce((s, e) => s + weight(e), 0);
     let r = Math.random() * total;
     for (const e of pool) { r -= weight(e); if (r <= 0) return e; }
@@ -838,8 +839,7 @@ dialog.ask .row { margin-top: 14px; justify-content: space-between; }
   function exerciseFor(i) {
     if (!run.plan.has(i)) {
       const st = run.steps[i];
-      const slot = [...run.plan.keys()].filter((j) => run.steps[j].category === "songs").length;
-      const ex = st.category === "songs" && run.song ? pickSongPart(run.song, run.used, slot) : pickSmart(st.category, run.used, run.songGroup);
+      const ex = st.category === "songs" && run.song ? pickSongPart(run.song, run.used) : pickSmart(st.category, run.used, run.songGroup);
       if (ex) run.used.add(ex.id);
       run.plan.set(i, ex);
     }
